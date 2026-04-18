@@ -37,7 +37,9 @@ def run(dataset_path: Path, k: int, verbose: bool) -> None:
         r = http.post(f"{SEARCH_URL}/search", json={"question": question})
         r.raise_for_status()
         results = r.json().get("results") or []
-        predicted: list[str] = results[0]["message_ids"] if results else []
+        predicted: list[str] = [
+            mid for item in results for mid in (item.get("message_ids") or [])
+        ]
 
         r_k = recall_at_k(predicted, gt, k)
         n_k = ndcg_at_k(predicted, gt, k)
@@ -68,7 +70,7 @@ def run(dataset_path: Path, k: int, verbose: bool) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=Path("eval/dataset.jsonl"))
+    p.add_argument("--dataset", type=Path, required=True, help="path to JSONL dataset")
     p.add_argument("--k", type=int, default=50)
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args()

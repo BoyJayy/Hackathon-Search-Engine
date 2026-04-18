@@ -85,109 +85,99 @@ class SparseEmbeddingResponse(BaseModel):
 
 app = FastAPI(title="Index Service", version="0.1.0")
 
-# Ваша внутренняя логика построения чанков. Можете делать всё, что посчитаете нужным.
-# Текущий код – минимальный пример
+# Message-boundary chunking — см. docs/ml-roadmap.md Этап 1
 
-CHUNK_SIZE = 512
-OVERLAP_SIZE = 256
+LOWER_CHARS = 400         # ниже порога — не эмитим на size-boundary, продолжаем копить
+UPPER_CHARS = 1600        # достигли — режем
+TIME_GAP_SECONDS = 3600   # > 1ч между сообщениями → разрыв
+OVERLAP_MESSAGES = 2      # хвост переносится в следующий чанк (только внутри thread/time window)
+
 SPARSE_MODEL_NAME = "Qdrant/bm25"
 FASTEMBED_CACHE_PATH = "/models/fastembed"
 
 # Важная переманная, которая позволяет вычислять sparse вектор в несколько ядер. Не рекомендуется изменять.
 UVICORN_WORKERS=8
 
+
 def render_message(message: Message) -> str:
-    text = ""
-
+    parts: list[str] = []
     if message.text:
-        text += message.text
-
+        parts.append(message.text.strip())
     if message.parts:
-        parts_text: list[str] = []
         for part in message.parts:
-            # parts различаются по своему типу, см. README.md
             part_text = part.get("text")
-            if isinstance(part_text, str) and part_text:
-                parts_text.append(part_text)
-        if parts_text:
-            text += "\n".join(parts_text)
+            if isinstance(part_text, str) and part_text.strip():
+                parts.append(part_text.strip())
+    if message.file_snippets:
+        parts.append(message.file_snippets.strip())
+    return "\n".join(p for p in parts if p)
 
-    return text
+
+def keep_message(m: Message) -> bool:
+    if m.is_hidden:
+        return False
+    if m.is_system:
+        return False
+    return True
 
 
 def build_chunks(
     overlap_messages: list[Message],
     new_messages: list[Message],
 ) -> list[IndexAPIItem]:
-    result: list[IndexAPIItem] = []
-
-    def build_text_and_ranges(messages: list[Message]) -> tuple[str, list[tuple[int, int, str]]]:
-        text_parts: list[str] = []
-        message_ranges: list[tuple[int, int, str]] = []
-        position = 0
-
-        for index, message in enumerate(messages):
-            text = render_message(message)
-            if not text:
-                continue
-
-            if index > 0 and text_parts:
-                text_parts.append("\n")
-                position += 1
-
-            start = position
-            text_parts.append(text)
-            position += len(text)
-            message_ranges.append((start, position, message.id))
-
-        return "".join(text_parts), message_ranges
-
-    def slice_tail(
-        text: str,
-        tail_size: int,
-    ) -> str:
-        if tail_size <= 0:
-            return ""
-
-        tail_start = max(0, len(text) - tail_size)
-        return text[tail_start:]
-
-    overlap_text, overlap_message_ranges = build_text_and_ranges(overlap_messages)
-    previous_chunk_text = slice_tail(overlap_text, OVERLAP_SIZE)
-
-    new_text, new_message_ranges = build_text_and_ranges(new_messages)
-
-    for start in range(0, len(new_text), CHUNK_SIZE):
-        chunk_body = new_text[start : start + CHUNK_SIZE]
-        if not chunk_body:
+    all_messages = overlap_messages + new_messages
+    rendered: list[tuple[Message, str]] = []
+    for m in all_messages:
+        if not keep_message(m):
             continue
+        text = render_message(m)
+        if not text:
+            continue
+        rendered.append((m, text))
+    rendered.sort(key=lambda pair: (pair[0].time, pair[0].id))
 
-        chunk_body_ranges = [
-            (
-                max(message_start, start) - start,
-                min(message_end, start + len(chunk_body)) - start,
-                message_id,
-            )
-            for message_start, message_end, message_id in new_message_ranges
-            if message_end > start and message_start < start + len(chunk_body)
-        ]
-        chunk_overlap = previous_chunk_text
-        chunk_text = chunk_overlap
-        if chunk_text and chunk_body:
-            chunk_text += "\n"
-        chunk_text += chunk_body
+    new_ids = {m.id for m in new_messages}
 
-        result.append(
+    groups: list[list[tuple[Message, str]]] = []
+    current: list[tuple[Message, str]] = []
+    current_len = 0
+
+    for m, text in rendered:
+        if current:
+            prev = current[-1][0]
+            same_thread = (m.thread_sn or "") == (prev.thread_sn or "")
+            gap = (m.time - prev.time) if (m.time and prev.time) else 0
+            hard_boundary = (not same_thread) or gap > TIME_GAP_SECONDS
+            size_boundary = current_len + len(text) > UPPER_CHARS
+
+            if hard_boundary or (size_boundary and current_len >= LOWER_CHARS):
+                groups.append(current)
+                if hard_boundary or OVERLAP_MESSAGES <= 0:
+                    tail: list[tuple[Message, str]] = []
+                else:
+                    tail = current[-OVERLAP_MESSAGES:]
+                current = list(tail)
+                current_len = sum(len(t) for _, t in current)
+        current.append((m, text))
+        current_len += len(text)
+
+    if current:
+        groups.append(current)
+
+    chunks: list[IndexAPIItem] = []
+    for group in groups:
+        if not any(m.id in new_ids for m, _ in group):
+            continue
+        body = "\n".join(t for _, t in group)
+        chunks.append(
             IndexAPIItem(
-                page_content=chunk_text,
-                dense_content=chunk_text,
-                sparse_content=chunk_text,
-                message_ids=[message_id for _, _, message_id in chunk_body_ranges],
+                page_content=body,
+                dense_content=body,
+                sparse_content=body,
+                message_ids=[m.id for m, _ in group],
             )
         )
-        previous_chunk_text = slice_tail(chunk_text, OVERLAP_SIZE)
-
-    return result
+    return chunks
 
 # Ваш сервис должен имплементировать оба этих метода
 @app.get("/health")

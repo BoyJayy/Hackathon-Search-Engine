@@ -30,10 +30,33 @@ QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = os.getenv("QDRANT_COLLECTION_NAME", "evaluation")
 DENSE_URL = os.getenv("EMBEDDINGS_DENSE_URL", "http://83.166.249.64:18001/embeddings")
 DENSE_MODEL = os.getenv("EMBEDDINGS_DENSE_MODEL", "Qwen/Qwen3-Embedding-0.6B")
+DENSE_SIZE = int(os.getenv("EMBEDDINGS_DENSE_SIZE", "1024"))
 LOGIN = os.environ["OPEN_API_LOGIN"]
 PASSWORD = os.environ["OPEN_API_PASSWORD"]
 DATA_PATH = Path(os.getenv("DATA_PATH", "data/Go Nova.json"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "16"))
+
+_CHUNK_ID_NAMESPACE = uuid.UUID("6f8c3a1e-0000-0000-0000-000000000001")
+
+
+def stable_chunk_id(chat_id: str, message_ids: list[str]) -> str:
+    key = f"{chat_id}:" + ",".join(sorted(message_ids))
+    return str(uuid.uuid5(_CHUNK_ID_NAMESPACE, key))
+
+
+def ensure_collection(qc: QdrantClient, name: str, dense_size: int) -> None:
+    if qc.collection_exists(name):
+        return
+    qc.create_collection(
+        collection_name=name,
+        vectors_config={
+            "dense": models.VectorParams(size=dense_size, distance=models.Distance.COSINE),
+        },
+        sparse_vectors_config={
+            "sparse": models.SparseVectorParams(modifier=models.Modifier.IDF),
+        },
+    )
+    print(f"      created collection {name} (dense={dense_size}, sparse=bm25+IDF)")
 
 
 def embed_dense_batch(client: httpx.Client, texts: list[str]) -> list[list[float]]:
@@ -51,7 +74,9 @@ def embed_dense_batch(client: httpx.Client, texts: list[str]) -> list[list[float
 def build_metadata(chat: dict, chunk: dict, messages_by_id: dict) -> dict:
     msg_ids = chunk["message_ids"]
     msgs = [messages_by_id[mid] for mid in msg_ids if mid in messages_by_id]
-    times = [m["time"] for m in msgs] or [0]
+    if not msgs:
+        raise ValueError(f"chunk has no resolvable messages: {msg_ids[:3]}")
+    times = [m["time"] for m in msgs]
     participants = sorted({m["sender_id"] for m in msgs})
     mentions = sorted({m for msg in msgs for m in (msg.get("mentions") or [])})
     return {
@@ -106,11 +131,16 @@ def main() -> None:
 
     print(f"[4/4] Qdrant upsert  -> {COLLECTION}")
     qc = QdrantClient(url=QDRANT_URL)
+    ensure_collection(qc, COLLECTION, DENSE_SIZE)
     points = []
+    skipped = 0
     for chunk, dense, sparse in zip(chunks, dense_vectors, sparse_vectors, strict=True):
+        if not chunk["message_ids"]:
+            skipped += 1
+            continue
         points.append(
             models.PointStruct(
-                id=str(uuid.uuid4()),
+                id=stable_chunk_id(chat["id"], chunk["message_ids"]),
                 vector={
                     "dense": dense,
                     "sparse": models.SparseVector(indices=sparse["indices"], values=sparse["values"]),
@@ -122,7 +152,7 @@ def main() -> None:
             )
         )
     qc.upsert(collection_name=COLLECTION, points=points)
-    print(f"done. {len(points)} points")
+    print(f"done. {len(points)} points (skipped {skipped} empty chunks)")
 
 
 if __name__ == "__main__":

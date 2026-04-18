@@ -31,20 +31,20 @@ docker compose up --build -d
 # 2. Заполнить Qdrant (один раз после изменений в index/)
 python eval/ingest.py
 
-# 3. Замер
-python eval/run.py --verbose
+# 3. Замер (датасет — обязателен)
+python eval/run.py --dataset path/to/dataset.jsonl --verbose
 ```
 
 ## Workflow при работе над качеством
 
 ```bash
 # baseline
-python eval/run.py > results/baseline.txt
+python eval/run.py --dataset eval/dataset.jsonl > results/baseline.txt
 
 # изменил chunking → переиндексировал → замерил
 docker compose restart index
-python eval/ingest.py     # перегрузить чанки в Qdrant
-python eval/run.py > results/after_chunking.txt
+python eval/ingest.py     # перегрузить чанки в Qdrant (id стабилен по hash — upsert перезаписывает)
+python eval/run.py --dataset eval/dataset.jsonl > results/after_chunking.txt
 
 # сравнить
 diff results/baseline.txt results/after_chunking.txt
