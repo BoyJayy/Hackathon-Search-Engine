@@ -1,0 +1,62 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    ports:
+      - "6333:6333"
+
+  qdrant-init:
+    image: curlimages/curl:8.12.1
+    depends_on:
+      - qdrant
+    command:
+      - sh
+      - -c
+      - |
+        until curl -sf http://qdrant:6333/collections; do
+          sleep 1
+        done
+        if curl -sf http://qdrant:6333/collections/evaluation >/dev/null; then
+          exit 0
+        fi
+        curl -sf -X PUT http://qdrant:6333/collections/evaluation \
+          -H 'Content-Type: application/json' \
+          -d '{
+            "vectors": {
+              "dense": {
+                "size": 1024,
+                "distance": "Cosine"
+              }
+            },
+            "sparse_vectors": {
+              "sparse": {
+                "modifier": "idf"
+              }
+            }
+          }'
+    restart: "no"
+
+  index:
+    build:
+      context: ./index
+    depends_on:
+      - qdrant
+    ports:
+      - "8001:8000"
+
+  search:
+    build:
+      context: ./search
+    depends_on:
+      qdrant-init:
+        condition: service_completed_successfully
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION_NAME: evaluation
+      QDRANT_DENSE_VECTOR_NAME: dense
+      QDRANT_SPARSE_VECTOR_NAME: sparse
+      EMBEDDINGS_DENSE_URL: ${EMBEDDINGS_DENSE_URL:-http://83.166.249.64:18001/embeddings}
+      RERANKER_URL: ${RERANKER_URL:-http://83.166.249.64:18001/score}
+      OPEN_API_LOGIN: ${OPEN_API_LOGIN:?set OPEN_API_LOGIN before docker compose up}
+      OPEN_API_PASSWORD: ${OPEN_API_PASSWORD:?set OPEN_API_PASSWORD before docker compose up}
+    ports:
+      - "8002:8000"
