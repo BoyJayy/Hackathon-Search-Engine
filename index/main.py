@@ -85,99 +85,15 @@ class SparseEmbeddingResponse(BaseModel):
 
 app = FastAPI(title="Index Service", version="0.1.0")
 
-# Message-boundary chunking — см. docs/ml-roadmap.md Этап 1
-
-LOWER_CHARS = 400         # ниже порога — не эмитим на size-boundary, продолжаем копить
-UPPER_CHARS = 1600        # достигли — режем
-TIME_GAP_SECONDS = 3600   # > 1ч между сообщениями → разрыв
-OVERLAP_MESSAGES = 2      # хвост переносится в следующий чанк (только внутри thread/time window)
+# Chunking — модульная реализация в index/chunking.py (Этап 1 + Этап 2).
+from chunking import build_chunks as _build_chunks  # noqa: E402
 
 SPARSE_MODEL_NAME = "Qdrant/bm25"
 FASTEMBED_CACHE_PATH = "/models/fastembed"
 
 # Важная переманная, которая позволяет вычислять sparse вектор в несколько ядер. Не рекомендуется изменять.
-UVICORN_WORKERS=8
+UVICORN_WORKERS = 8
 
-
-def render_message(message: Message) -> str:
-    parts: list[str] = []
-    if message.text:
-        parts.append(message.text.strip())
-    if message.parts:
-        for part in message.parts:
-            part_text = part.get("text")
-            if isinstance(part_text, str) and part_text.strip():
-                parts.append(part_text.strip())
-    if message.file_snippets:
-        parts.append(message.file_snippets.strip())
-    return "\n".join(p for p in parts if p)
-
-
-def keep_message(m: Message) -> bool:
-    if m.is_hidden:
-        return False
-    if m.is_system:
-        return False
-    return True
-
-
-def build_chunks(
-    overlap_messages: list[Message],
-    new_messages: list[Message],
-) -> list[IndexAPIItem]:
-    all_messages = overlap_messages + new_messages
-    rendered: list[tuple[Message, str]] = []
-    for m in all_messages:
-        if not keep_message(m):
-            continue
-        text = render_message(m)
-        if not text:
-            continue
-        rendered.append((m, text))
-    rendered.sort(key=lambda pair: (pair[0].time, pair[0].id))
-
-    new_ids = {m.id for m in new_messages}
-
-    groups: list[list[tuple[Message, str]]] = []
-    current: list[tuple[Message, str]] = []
-    current_len = 0
-
-    for m, text in rendered:
-        if current:
-            prev = current[-1][0]
-            same_thread = (m.thread_sn or "") == (prev.thread_sn or "")
-            gap = (m.time - prev.time) if (m.time and prev.time) else 0
-            hard_boundary = (not same_thread) or gap > TIME_GAP_SECONDS
-            size_boundary = current_len + len(text) > UPPER_CHARS
-
-            if hard_boundary or (size_boundary and current_len >= LOWER_CHARS):
-                groups.append(current)
-                if hard_boundary or OVERLAP_MESSAGES <= 0:
-                    tail: list[tuple[Message, str]] = []
-                else:
-                    tail = current[-OVERLAP_MESSAGES:]
-                current = list(tail)
-                current_len = sum(len(t) for _, t in current)
-        current.append((m, text))
-        current_len += len(text)
-
-    if current:
-        groups.append(current)
-
-    chunks: list[IndexAPIItem] = []
-    for group in groups:
-        if not any(m.id in new_ids for m, _ in group):
-            continue
-        body = "\n".join(t for _, t in group)
-        chunks.append(
-            IndexAPIItem(
-                page_content=body,
-                dense_content=body,
-                sparse_content=body,
-                message_ids=[m.id for m, _ in group],
-            )
-        )
-    return chunks
 
 # Ваш сервис должен имплементировать оба этих метода
 @app.get("/health")
@@ -187,11 +103,20 @@ async def health() -> dict[str, str]:
 
 @app.post("/index", response_model=IndexAPIResponse)
 async def index(payload: IndexAPIRequest) -> IndexAPIResponse:
+    chunks = _build_chunks(
+        payload.data.overlap_messages,
+        payload.data.new_messages,
+    )
     return IndexAPIResponse(
-        results=build_chunks(
-            payload.data.overlap_messages,
-            payload.data.new_messages,
-        )
+        results=[
+            IndexAPIItem(
+                page_content=c.page_content,
+                dense_content=c.dense_content,
+                sparse_content=c.sparse_content,
+                message_ids=c.message_ids,
+            )
+            for c in chunks
+        ]
     )
 
 

@@ -1,0 +1,512 @@
+{
+  "data": {
+    "chat": {
+      "id": "58201@chat.example",
+      "name": "Go Nova",
+      "sn": "58201@chat.example",
+      "type": "group",
+      "is_public": true,
+      "members_count": 766,
+      "members": null
+    },
+    "overlap_messages": [],
+    "new_messages": [
+      {
+        "id": "3555555555555555555",
+        "thread_sn": null,
+        "time": 1634136654,
+        "text": "",
+        "sender_id": "n.lebedev@corp.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": {
+          "type": "addMembers",
+          "members": [
+            "l.smirnova@corp.example",
+            "m.orlova@corp.example",
+            "v.baranova@corp.example",
+            "n.lebedev@corp.example"
+          ]
+        },
+        "is_system": true,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "3666666666666666666",
+        "thread_sn": null,
+        "time": 1639744586,
+        "text": "Передадите приглашение знакомым PHPшникам? \n\nАктивисты PHP-сообщества проводят опрос, чтобы подвести итоги PHP-года: развитие технологий и людей, важные события, интересный контент и т.д.\n\nОпрос короткий, займет не больше 3 минут, а результаты помогут и нам в том числе лучше представлять индустрию.\n\nhttps://redacted.example/resource/005",
+        "sender_id": "v.baranova@corp.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "3777777777777777777",
+        "thread_sn": null,
+        "time": 1639909047,
+        "text": "",
+        "sender_id": "v.baranova@corp.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "forward",
+            "sn": "48377@chat.example",
+            "time": 1639755713,
+            "text": "Приглашаем на DC Backend Tech Talk\n\nВсем привет!\nТехтолки Rocket Deli не заканчиваются, и мы готовы рассказать о новом событии. Вечер 21 декабря посвятим обсуждению Go и автоматизации. \n\nПрограмма: \n📍 «Автоматизация в помощь разработчику. Как избежать ручной работы», Кирилл Веденин \nКирилл поделится несколькими способами экономии времени и избегания ошибок путем автоматизации ручного труда. Расскажет о настройке IDE, чтобы warnings были полезными и не замыливали глаз, а также о том, как не парсить вывод глазами, какие API есть у инструментов и как его можно использовать.\n📍«DC rules линтер», Антон Жаров \nАнтон покажет наш новый линтер для проверки Go-правил. Рассмотрит, что уже умеем проверять, какие планы развития проекта. А также поделится тем, какие оптимизации из https://redacted.example/resource/009 (прошлого митапа) получилось реализовать.\n\nДетали встречи: \n\nДата: 21 декабря.\n\nВремя: 18:30 — 19:30.\n\nОнлайн встречаемся в https://redacted.example/resource/004 (Zoom).\n\nОфлайн увидимся в конференц-зале Севере. \n\nДекабрь у всех горит, поэтому ставьте плюсик ниже в форме, чтобы не забыть присоединиться. До встречи!\n\nhttps://redacted.example/resource/006"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": true,
+        "is_quote": false
+      },
+      {
+        "id": "3888888888888888888",
+        "thread_sn": null,
+        "time": 1643028410,
+        "text": "",
+        "sender_id": "i.volkova@corp.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "forward",
+            "sn": "48377@chat.example",
+            "time": 1643024502,
+            "text": "​DC Backend Tech Talk | Релиз Go 1.18\n\nВсем привет! Техтолки Rocket Deli по Backend превращаются в регулярную традицию. Начинали в ноябре с одного спикера и теперь расширяем свои горизонты. Встречу посвятим релизу Go 1.18.\nПрограмма:\n📍«Generic’и в Golang — обзор и способы применения»,Роман Кедров\nВ февральском релизе Go добавляются Generic'и. Рома сделает обзор функционала и поделится несколькими способами их применения. Вместе обсудим их плюсы и минусы.\nАнтон Жаров  дополнит Рому и расскажет про Fuzzing тестирование. \n📍«Новым методы sync пакета: Mutex.TryLock, RWMutex.TryLock, and RWMutex.TryRLock», Павел Миронов\nС Павлом рассмотрим преимущества методов: благодаря чему, они упрощают работу, которую до этого делали через канал или атомик.\n📍«Escape analysis и влияние указателей на производительность», Илья Корнеев\nПоговорим с Ильёй про работу с памятью (про стек и кучу) и посмотрим как, используя указатели, можно получить x20 просадку производительности и поймать занимательные баги.\nДетали встречи:\n\nДата: 25 января.Время: 18:30 — 19:30.Онлайн встречаемся в https://redacted.example/resource/003 (Zoom). Релиз будет интересный, ставьте плюсик ниже в форме, чтобы не забыть присоединиться. До встречи и не болейте!\n\nhttps://redacted.example/resource/007"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": true,
+        "is_quote": false
+      },
+      {
+        "id": "3999999999999999999",
+        "thread_sn": null,
+        "time": 1643372755,
+        "text": "",
+        "sender_id": "l.smirnova@corp.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Всем привет! Ребята из внутрикома планируют зарелизить страничку в интранете, где будут собраны все технологии, которые есть у нас в компании в разных проектах.\n\nНапример, распознавание по лицу, детектор токсичности в чатах, распознавание речи, перевод в текст и многое другое. \n\nИнформация о технологиях будет реализована в виде карточек с техническим описанием, перечнем проектов, в которых используется эта технология и списком коллег, к которым можно обратиться с вопросами.\n\nКак это лучше реализовать, про что не забыть и насколько страничка будет полезна, никто лучше вас не расскажет. Поэтому делитесь своим мнением и оставляйте фидбэк по ссылке: https://redacted.example/resource/010\n\nЕсли будут доп вопросы — пишите Лене Вороновой."
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4111111111111111110",
+        "thread_sn": null,
+        "time": 1643377398,
+        "text": "",
+        "sender_id": "a.zimina@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "👋🏼Друзья, привет! \nПланируем провести внешний митап Nova TechTalk для Go-разработчиков в конце февраля или начале марте, как раз после нового релиза Go 1.18. \n\nСейчас в программе уже есть один спикер из команды Rocket Deli, поэтому если у вас есть желание, идеи или предложения по темам, вэлкам, пишите мне)  Буду рада помочь подготовить доклад!"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4222222222222222221",
+        "thread_sn": null,
+        "time": 1645110008,
+        "text": "",
+        "sender_id": "a.zimina@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Хэй, привет всем, кто недавно присоединился к этому чатику! Здесь вы можете  делиться наработками и болью, задавать вопросы и обсуждать все, что душе угодно) \n\nМеня зовут Ника, я devrel и буду помогать сообществу GO-разработчиков расти, общаться, собираться на всякие движухи и прочее)\n\nПоэтому вы всегда можете обратиться ко мне, если: \n- у вас есть (или появятся) идеи для выступлений на внутренних митапах или демо. Это не всегда что-то сложное и масштабное, иногда самые обычные для вас вещи неочевидны для соседней команды)\n- захочется написать статью  \n- выступить на конференции\n\nЗа все активности мы щедро наградим вас ачивками и плюсами к карме!  \nБолее подробно прочитать про форматы мероприятий и ачивки можно тут)"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4333333333333333332",
+        "thread_sn": null,
+        "time": 1648734136,
+        "text": "Всем привет, кто-нибудь сталкивался с абортом syscall такого вида?",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4444444444444444444",
+        "thread_sn": null,
+        "time": 1648734137,
+        "text": "SIGABRT: abort\nPC=0x191919191 m=0 sigcode=0\n\ngoroutine 0 [idle]:\ncrypto/x509/internal/macos.syscall(0x999999999, 0x0, 0xaaaaaaaaa, 0x17, 0x1d1d1d1, 0x0, 0x0)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/sys_darwin.go:95 +0x14 fp=0x2121212121 sp=0x2020202020 pc=0x555555555\ncrypto/x509/internal/macos.ID0046ID0046ID00({0xaaaaaaaaa, 0x17})\n        /Users/dev-sokolov/go/go1.17.3/src/crypto/x509/internal/macos/corefoundation.go:49 +0x84 fp=0x2222222222 sp=0x2121212121 pc=0x777777777\ncrypto/x509/internal/macos.init()\n        /Users/dev-sokolov/go/go1.17.3/src/crypto/x509/internal/macos/security.go:59 +0x80 fp=0x2323232323 sp=0x2222222222 pc=0x888888888\nruntime.doInit(0xbbbbbbbbb)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6498 +0x138 fp=0x2424242424 sp=0x2323232323 pc=0x444444444\nruntime.doInit(0xfffffffff)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2525252525 sp=0x2424242424 pc=0x333333333\nruntime.doInit(0x101010101)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2626262626 sp=0x2525252525 pc=0x333333333\nruntime.doInit(0x111111111)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2727272727 sp=0x2626262626 pc=0x333333333\nruntime.doInit(0xeeeeeeeee)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2828282828 sp=0x2727272727 pc=0x333333333\nruntime.doInit(0xddddddddd)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2929292929 sp=0x2828282828 pc=0x333333333\nruntime.doInit(0xccccccccc)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2a2a2a2a2a sp=0x2929292929 pc=0x333333333\nruntime.main()\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:238 +0x22c fp=0x2b2b2b2b2b sp=0x2a2a2a2a2a pc=0x222222222\nruntime.goexit()\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/asm_arm64.s:1133 +0x4 fp=0x2b2b2b2b2b sp=0x2b2b2b2b2b pc=0x666666666\n\ngoroutine 1 [syscall, locked to thread]:\ncrypto/x509/internal/macos.syscall(0x999999999, 0x0, 0xaaaaaaaaa, 0x17, 0x1d1d1d1, 0x0, 0x0)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/sys_darwin.go:95 +0x14 fp=0x2121212121 sp=0x2020202020 pc=0x555555555\ncrypto/x509/internal/macos.ID0046ID0046ID00({0xaaaaaaaaa, 0x17})\n        /Users/dev-sokolov/go/go1.17.3/src/crypto/x509/internal/macos/corefoundation.go:49 +0x84 fp=0x2222222222 sp=0x2121212121 pc=0x777777777\ncrypto/x509/internal/macos.init()\n        /Users/dev-sokolov/go/go1.17.3/src/crypto/x509/internal/macos/security.go:59 +0x80 fp=0x2323232323 sp=0x2222222222 pc=0x888888888\nruntime.doInit(0xbbbbbbbbb)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6498 +0x138 fp=0x2424242424 sp=0x2323232323 pc=0x444444444\nruntime.doInit(0xfffffffff)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2525252525 sp=0x2424242424 pc=0x333333333\nruntime.doInit(0x101010101)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2626262626 sp=0x2525252525 pc=0x333333333\nruntime.doInit(0x111111111)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2727272727 sp=0x2626262626 pc=0x333333333\nruntime.doInit(0xeeeeeeeee)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2828282828 sp=0x2727272727 pc=0x333333333\nruntime.doInit(0xddddddddd)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2929292929 sp=0x2828282828 pc=0x333333333\nruntime.doInit(0xccccccccc)\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:6475 +0x70 fp=0x2a2a2a2a2a sp=0x2929292929 pc=0x333333333\nruntime.main()\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/proc.go:238 +0x22c fp=0x2b2b2b2b2b sp=0x2a2a2a2a2a pc=0x222222222\nruntime.goexit()\n        /Users/dev-sokolov/go/go1.17.3/src/runtime/asm_arm64.s:1133 +0x4 fp=0x2b2b2b2b2b sp=0x2b2b2b2b2b pc=0x666666666\n\nr0      0x0\nr1      0x0\nr2      0x0\nr3      0x0\nr4      0x0\nr5      0x0\nr6      0x1\nr7      0x131313131\nr8      0x1f1f1f1f1f1f1f1f\nr9      0x1e1e1e1e1e1e1e1e\nr10     0x2c2c2c2c2c2c2c2c\nr11     0xa\nr12     0x0\nr13     0x38\nr14     0x1c1c1c1\nr15     0x0\nr16     0x148\nr17     0x1b1b1b1b1\nr18     0x0\nr19     0x6\nr20     0x141414141\nr21     0x103\nr22     0x171717171\nr23     0x121212121\nr24     0x0\nr25     0x0\nr26     0x181818181\nr27     0x141414141\nr28     0x760\nr29     0x161616161\nlr      0x1a1a1a1a1\nsp      0x151515151\npc      0x191919191\nfault   0x191919191",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4555555555555555555",
+        "thread_sn": null,
+        "time": 1648734205,
+        "text": "Железка MacBook Air (M1, 2020)",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4666666666666666666",
+        "thread_sn": null,
+        "time": 1648740500,
+        "text": "видимо тебе под strace'ом смотреть, что там за сисколл был и что в него передали",
+        "sender_id": "p.korovin@corp.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4777777777777777777",
+        "thread_sn": null,
+        "time": 1648807412,
+        "text": "не оно? https://redacted.example/resource/002",
+        "sender_id": "g.belov@team.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4888888888888888888",
+        "thread_sn": null,
+        "time": 1648810304,
+        "text": "Не похоже",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "4999999999999999999",
+        "thread_sn": null,
+        "time": 1649143033,
+        "text": "",
+        "sender_id": "a.zimina@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Всем привет ✌️\n14 апреля мы приглашаем всех, кому интересна Go-разработка, на митап, который пройдёт в гибридном формате (офлайн у нас в Панораме + онлайн-трансляция) в 19:00 (Мск).  \n\nДа-да, вы не ослышались, офлайн-митапы возвращаются!🎉 \nТак что приходите сами и отправляйте своим друзьям ссылку на регистрацию. \n\nРебята из NovaNet, Юлы и Nova Cloud поделятся своими наработками и бесценным опытом.   \n\n⭐В программе:\n\n1. Тимур Беляев, старший разработчик команды KPHP, NovaNet\nQuasigo: интерпретатор Go, используемый в ruleguard\nЗачем писать интерпретатор для Go, как он используется и соотносится с уже существующими решениями.\n\n2. Егор Власов, ведущий программист, Nova Cloud\nВоркшоп: как написать свой Terraform-провайдер и зачем?\nКак написать и зарелизить в официальный реджистри свой терраформ-провайдер на примере провайдера Nova Cloud.\n\n3. Максим Дорофеев, старший Go-разработчик, Marketo (проект Nova)\nТипизация Kafka-топиков в среде Golang + JSON/Protobuf\nСценарии использования Confluent Schema Registry в мире Golang, PHP и Protobuf для типизации сообщений, передающихся через Kafka.\n\n ! Чтобы добавить напоминание и ссылку на стрим к себе в календарь, плюсуйте в форме под постом. \n\nЕсли будет много желающих и места в переговорной А1 на всех не хватит, мы организуем для сотрудников уютную трансляцию в кинозале💙"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "5111111111111111110",
+        "thread_sn": null,
+        "time": 1649327231,
+        "text": "",
+        "sender_id": "a.zimina@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Привет-привет!\nАнонсировали всеобщий внутренний хакатон Inner Spark, так что если вы давно мечтали поделать что-то прикольное, для души и c Nova, объединяйтесь со знакомыми разработчиками и регистрируйтесь)"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "5222222222222222221",
+        "thread_sn": null,
+        "time": 1649414881,
+        "text": "Всем привет! 👋 Написано, что чатик и для вопросов тоже, нужен совет :D решили причесать структуру гошного проекта под какой-нибудь +- общепринятый вид, но возникла проблема c тем, в какую папку положить файлы создания/схем баз данных, потому что вроде как оно и не build/, и не scripts/, а ресерч по прочим репам опенсорса ничего ясного не дал (  где такие скрипты лучше разместить или где бы вы их ожидали увидеть в репе?",
+        "sender_id": "n.ermakova@team.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "5333333333333333332",
+        "thread_sn": null,
+        "time": 1649416005,
+        "text": "У нас в корне в migrations валяются запросы на альтер таблиц)",
+        "sender_id": "r.efimov@corp.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "5444444444444444443",
+        "thread_sn": null,
+        "time": 1649418855,
+        "text": "",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "quote",
+            "sn": "n.ermakova@team.example",
+            "time": 1649414882,
+            "text": "Всем привет! 👋 Написано, что чатик и для вопросов тоже, нужен совет :D решили причесать структуру гошного проекта под какой-нибудь +- общепринятый вид, но возникла проблема c тем, в какую папку положить файлы создания/схем баз данных, потому что вроде как оно и не build/, и не scripts/, а ресерч по прочим репам опенсорса ничего ясного не дал (  где такие скрипты лучше разместить или где бы вы их ожидали увидеть в репе?"
+          },
+          {
+            "mediaType": "text",
+            "text": "как правило в корне в migrations лежат фалики миграций, и самое лучшее что я видел это формирование файлов миграций через утилиту goose она формирует название формата \"timstamp_migration_name.sql\", а процесс миграций привязан был к make migrate → он запускал небольшой гусевый скрипт в cmd/migrations/main.go и он мигрировал это все в базку"
+          }
+        ],
+        "mentions": [
+          "n.ermakova@team.example"
+        ],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": true
+      },
+      {
+        "id": "5555555555555555555",
+        "thread_sn": null,
+        "time": 1649421154,
+        "text": "",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Всем ещё раз привет. Кто-нибудь пробовал делать билд го проекта с зависимостью от CGO, где Сишка только под Линукс, при билде пробовал разные переменные перед билдом, но нужно правильно указать CC, никто не сталкивался? Понимаю что выглядит как чёрная магия, но все же"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "5666666666666666666",
+        "thread_sn": null,
+        "time": 1649668929,
+        "text": "",
+        "sender_id": "k.zorin@corp.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "quote",
+            "sn": "d.sokolov@team.example",
+            "time": 1649421153,
+            "text": "Всем ещё раз привет. Кто-нибудь пробовал делать билд го проекта с зависимостью от CGO, где Сишка только под Линукс, при билде пробовал разные переменные перед билдом, но нужно правильно указать CC, никто не сталкивался? Понимаю что выглядит как чёрная магия, но все же"
+          },
+          {
+            "mediaType": "text",
+            "text": "Привет. Проект собирается под линуксом?"
+          }
+        ],
+        "mentions": [
+          "d.sokolov@team.example"
+        ],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": true
+      },
+      {
+        "id": "5777777777777777777",
+        "thread_sn": null,
+        "time": 1649669799,
+        "text": "",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Была попытка собрать это все на маке. Но все же пришлось заказывать машину на линухе"
+          },
+          {
+            "mediaType": "quote",
+            "sn": "k.zorin@corp.example",
+            "time": 1649668929,
+            "text": "Привет. Проект собирается под линуксом?"
+          }
+        ],
+        "mentions": [
+          "k.zorin@corp.example"
+        ],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": true
+      },
+      {
+        "id": "5888888888888888888",
+        "thread_sn": null,
+        "time": 1649672098,
+        "text": "",
+        "sender_id": "k.zorin@corp.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "quote",
+            "sn": "d.sokolov@team.example",
+            "time": 1649669799,
+            "text": "Была попытка собрать это все на маке. Но все же пришлось заказывать машину на линухе"
+          },
+          {
+            "mediaType": "text",
+            "text": "CGO позволяет прям в коде указать, какие либы где искать, и соответственно, нет необходимости указывать переменные перед билдом."
+          }
+        ],
+        "mentions": [
+          "k.zorin@corp.example",
+          "d.sokolov@team.example"
+        ],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": true
+      },
+      {
+        "id": "5999999999999999999",
+        "thread_sn": null,
+        "time": 1649672301,
+        "text": "",
+        "sender_id": "d.sokolov@team.example",
+        "file_snippets": "[{\"antivirus_check\": \"unchecked\", \"content_id\": \"ID0045ID0045ID0045ID0045ID0045ID\", \"date_create\": \"2022-04-11 13:18:21\", \"id\": \"ID0001ID0001ID0001ID0001ID0001ID0\", \"is_previewable\": true, \"mime\": \"image/webp\", \"name\": \"IMG_8471.webp\", \"order\": 0, \"original_url\": \"https://redacted.example/resource/001\", \"size\": \"30240\", \"status\": \"3\", \"uid\": \"d.sokolov@team.example\"}]",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "https://redacted.example/resource/001"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "6111111111111111110",
+        "thread_sn": null,
+        "time": 1649672384,
+        "text": "Какой командой сборка происходит?",
+        "sender_id": "k.zorin@corp.example",
+        "file_snippets": "",
+        "parts": [],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": false
+      },
+      {
+        "id": "6222222222222222221",
+        "thread_sn": null,
+        "time": 1649952853,
+        "text": "",
+        "sender_id": "a.zimina@team.example",
+        "file_snippets": "",
+        "parts": [
+          {
+            "mediaType": "text",
+            "text": "Мы уже начали Nova TechTalk, присоединяйтесь к трансляции https://redacted.example/resource/008"
+          },
+          {
+            "mediaType": "quote",
+            "sn": "a.zimina@team.example",
+            "time": 1649143033,
+            "text": "Всем привет ✌️\n14 апреля мы приглашаем всех, кому интересна Go-разработка, на митап, который пройдёт в гибридном формате (офлайн у нас в Панораме + онлайн-трансляция) в 19:00 (Мск).  \n\nДа-да, вы не ослышались, офлайн-митапы возвращаются!🎉 \nТак что приходите сами и отправляйте своим друзьям ссылку на регистрацию. \n\nРебята из NovaNet, Юлы и Nova Cloud поделятся своими наработками и бесценным опытом.   \n\n⭐В программе:\n\n1. Тимур Беляев, старший разработчик команды KPHP, NovaNet\nQuasigo: интерпретатор Go, используемый в ruleguard\nЗачем писать интерпретатор для Go, как он используется и соотносится с уже существующими решениями.\n\n2. Егор Власов, ведущий программист, Nova Cloud\nВоркшоп: как написать свой Terraform-провайдер и зачем?\nКак написать и зарелизить в официальный реджистри свой терраформ-провайдер на примере провайдера Nova Cloud.\n\n3. Максим Дорофеев, старший Go-разработчик, Marketo (проект Nova)\nТипизация Kafka-топиков в среде Golang + JSON/Protobuf\nСценарии использования Confluent Schema Registry в мире Golang, PHP и Protobuf для типизации сообщений, передающихся через Kafka.\n\n ! Чтобы добавить напоминание и ссылку на стрим к себе в календарь, плюсуйте в форме под постом. \n\nЕсли будет много желающих и места в переговорной А1 на всех не хватит, мы организуем для сотрудников уютную трансляцию в кинозале💙"
+          }
+        ],
+        "mentions": [],
+        "member_event": null,
+        "is_system": false,
+        "is_hidden": false,
+        "is_forward": false,
+        "is_quote": true
+      }
+    ]
+  }
+}
