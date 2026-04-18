@@ -1,0 +1,2 @@
+httpx==0.28.1
+qdrant-client==1.17.1
