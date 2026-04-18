@@ -280,14 +280,13 @@ async def rerank_points(
     query: str,
     points: list[Any],
 ) -> list[Any]:
-    rerank_candidates = points[:10]
-    rerank_targets = [point.payload.get("page_content") for point in rerank_candidates]
+    rerank_targets = [point.payload.get("page_content") for point in points]
     scores = await get_rerank_scores(client, query, rerank_targets)
 
     reranked_candidates = [
         point
         for _, point in sorted(
-            zip(scores, rerank_candidates, strict=True),
+            zip(scores, points, strict=True),
             key=lambda item: item[0],
             reverse=True,
         )
