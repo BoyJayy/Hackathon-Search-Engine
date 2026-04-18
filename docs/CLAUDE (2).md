@@ -60,6 +60,43 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Empirical Tuning
+
+**Don't guess parameters. Measure, then pick.**
+
+When choosing values (chunk size, overlap, K, thresholds, α):
+- Sweep the parameter, show a table with real + synthetic data.
+- Flag the tradeoff curve. Don't silently pick a point on it.
+- If the data shows an anomaly (overlap=0 giving MORE duplication than overlap=1), **stop and find the bug**. Don't move on with "weird but whatever".
+- Never pick a value because "it seems reasonable" — pick because data wins.
+- When no ground truth exists (no eval dataset), say so explicitly. Proxy metrics (dup ratio, coverage) are hints, not verdicts.
+
+## 6. Reconsider on Pushback
+
+**When the user challenges your reasoning, assume they see something you don't.**
+
+- Don't double down. Don't capitulate silently either.
+- Restate your original argument and name what's weak in it.
+- If the challenge is valid, say so explicitly and update.
+- If it's partially right, spell out the nuance — which part holds, which doesn't.
+
+Example from this project: I argued "rerank needs large chunks for context." User pushed back with "rerank just sorts." Correct response: concede that rerank doesn't *generate*, but note it still needs enough input to score. Update recommendation accordingly.
+
+Confidence is earned per-argument, not per-session.
+
+## 7. Concrete Over Abstract
+
+**When explaining a system, default to a traced example — not a rule.**
+
+- Minimal dataset: 3-6 items. Inflate only what's needed to show the mechanism.
+- Show input → transformation → output at each stage.
+- Name specific values (timestamps, ids, scores) — not placeholders like `X`.
+- After the example, state the general rule it illustrates.
+
+"Works by X" is weaker than "example: input Y → transform Z → output W — i.e., X."
+
+Applies doubly when the user says "на пальцах", "concrete example", "покажи конкретно".
+
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, clarifying questions come before implementation, and parameter choices are backed by data rather than vibes.
