@@ -7,16 +7,18 @@ Env required:
     OPEN_API_LOGIN, OPEN_API_PASSWORD  -- creds for dense API (Basic Auth)
 
 Optional env:
-    INDEX_URL                (default http://localhost:8001)
-    QDRANT_URL               (default http://localhost:6333)
-    QDRANT_COLLECTION_NAME   (default evaluation)
-    EMBEDDINGS_DENSE_URL     (default http://83.166.249.64:18001/embeddings)
-    EMBEDDINGS_DENSE_MODEL   (default Qwen/Qwen3-Embedding-0.6B)
-    DATA_PATH                (default data/Go Nova.json)
-    BATCH_SIZE               (default 16)
+    INDEX_URL                    (default http://localhost:8001)
+    QDRANT_URL                   (default http://localhost:6333)
+    QDRANT_COLLECTION_NAME       (default evaluation)
+    EMBEDDINGS_DENSE_URL         (default http://83.166.249.64:18001/embeddings)
+    EMBEDDINGS_DENSE_MODEL       (default Qwen/Qwen3-Embedding-0.6B)
+    DATA_PATH                    (default data/Go Nova.json)
+    BATCH_SIZE                   (default 16)
+    DELETE_EXISTING_CHAT_POINTS  (default 1)
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import uuid
@@ -35,12 +37,14 @@ LOGIN = os.environ["OPEN_API_LOGIN"]
 PASSWORD = os.environ["OPEN_API_PASSWORD"]
 DATA_PATH = Path(os.getenv("DATA_PATH", "data/Go Nova.json"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "16"))
+DELETE_EXISTING_CHAT_POINTS = os.getenv("DELETE_EXISTING_CHAT_POINTS", "1") == "1"
 
 _CHUNK_ID_NAMESPACE = uuid.UUID("6f8c3a1e-0000-0000-0000-000000000001")
 
 
-def stable_chunk_id(chat_id: str, message_ids: list[str]) -> str:
-    key = f"{chat_id}:" + ",".join(sorted(message_ids))
+def stable_chunk_id(chat_id: str, chunk: dict) -> str:
+    page_hash = hashlib.sha1(chunk["page_content"].encode("utf-8"), usedforsecurity=False).hexdigest()
+    key = f"{chat_id}:" + ",".join(sorted(chunk["message_ids"])) + f":{page_hash}"
     return str(uuid.uuid5(_CHUNK_ID_NAMESPACE, key))
 
 
@@ -57,6 +61,23 @@ def ensure_collection(qc: QdrantClient, name: str, dense_size: int) -> None:
         },
     )
     print(f"      created collection {name} (dense={dense_size}, sparse=bm25+IDF)")
+
+
+def delete_existing_chat_points(qc: QdrantClient, collection_name: str, chat_id: str) -> None:
+    qc.delete(
+        collection_name=collection_name,
+        wait=True,
+        points_selector=models.FilterSelector(
+            filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="metadata.chat_id",
+                        match=models.MatchValue(value=chat_id),
+                    ),
+                ],
+            ),
+        ),
+    )
 
 
 def embed_dense_batch(client: httpx.Client, texts: list[str]) -> list[list[float]]:
@@ -84,6 +105,7 @@ def build_metadata(chat: dict, chunk: dict, messages_by_id: dict) -> dict:
         "chat_type": chat["type"],
         "chat_id": chat["id"],
         "chat_sn": chat["sn"],
+        "thread_sn": next((m.get("thread_sn") for m in msgs if m.get("thread_sn")), None),
         "message_ids": msg_ids,
         "start": str(min(times)),
         "end": str(max(times)),
@@ -132,6 +154,9 @@ def main() -> None:
     print(f"[4/4] Qdrant upsert  -> {COLLECTION}")
     qc = QdrantClient(url=QDRANT_URL)
     ensure_collection(qc, COLLECTION, DENSE_SIZE)
+    if DELETE_EXISTING_CHAT_POINTS:
+        print(f"      deleting existing points for chat {chat['id']}")
+        delete_existing_chat_points(qc, COLLECTION, chat["id"])
     points = []
     skipped = 0
     for chunk, dense, sparse in zip(chunks, dense_vectors, sparse_vectors, strict=True):
@@ -140,7 +165,7 @@ def main() -> None:
             continue
         points.append(
             models.PointStruct(
-                id=stable_chunk_id(chat["id"], chunk["message_ids"]),
+                id=stable_chunk_id(chat["id"], chunk),
                 vector={
                     "dense": dense,
                     "sparse": models.SparseVector(indices=sparse["indices"], values=sparse["values"]),

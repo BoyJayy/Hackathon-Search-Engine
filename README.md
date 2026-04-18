@@ -75,7 +75,7 @@ docker compose up --build
 - `index` на `localhost:8001`
 - `search` на `localhost:8002`
 
-Важно: текущий репозиторий поднимает сервисы, но не содержит отдельного ingestion-orchestrator, который прогоняет `/index` -> dense/sparse embeddings -> upsert в Qdrant. Этот pipeline описан в [docs/process.md](docs/process.md).
+Для локальной разработки ingestion pipeline уже есть в виде eval-скрипта: [eval/ingest.py](/Users/boyjayy/Documents/Search/eval/ingest.py). Он прогоняет `/index` -> dense embeddings -> `/sparse_embedding` -> upsert в Qdrant. Полный процесс расписан в [docs/process.md](docs/process.md).
 
 ## Быстрый тест `index`
 
@@ -142,3 +142,24 @@ POST /index
 ```
 
 Этот процесс расписан подробно в [docs/process.md](docs/process.md).
+
+## Локальный ingestion и eval
+
+После `docker compose up --build` можно локально наполнить Qdrant и проверить поиск:
+
+```bash
+python3 eval/ingest.py
+```
+
+Что делает скрипт:
+- вызывает `POST /index`;
+- считает dense embeddings через внешний API;
+- считает sparse vectors через `POST /sparse_embedding`;
+- удаляет старые точки этого же чата;
+- делает upsert в Qdrant со стабильными id.
+
+После этого можно гонять поиск или локальный eval harness:
+
+```bash
+python3 eval/run.py --dataset /path/to/questions.jsonl --k 50 --verbose
+```

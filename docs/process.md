@@ -244,22 +244,25 @@ Reranker получает:
 - внешний rerank API;
 - локальный `Qdrant` через `docker compose`.
 
-## 13. Чего сейчас ещё нет как отдельного слоя
+## 13. Как это сделано локально сейчас
 
-Пока нет отдельного ingestion-orchestrator, который делает всё end-to-end:
+В репозитории уже есть локальный ingestion-orchestrator:
+- [`eval/ingest.py`](/Users/boyjayy/Documents/Search/eval/ingest.py)
+
+Он делает весь pipeline end-to-end:
 
 ```text
 POST /index
 -> dense embeddings
 -> POST /sparse_embedding
+-> delete existing chat points
 -> upsert в Qdrant
 ```
 
-То есть:
-- тексты для индекса уже готовятся;
-- sparse vectors уже можно строить;
-- dense API уже доступен;
-- но полный локальный процесс индексации надо отдельно оркестрировать.
+Что в нём важно:
+- dense embeddings считаются батчами;
+- point id детерминирован и учитывает не только `message_ids`, но и содержимое chunk'а;
+- перед upsert удаляются старые точки этого же чата, чтобы повторный ingest не оставлял stale data после смены chunking.
 
 ## 14. Самый простой боевой baseline
 
@@ -286,6 +289,7 @@ POST /index
 - [`index/main.py`](/Users/boyjayy/Documents/Search/index/main.py) — API `index`
 - [`index/chunking.py`](/Users/boyjayy/Documents/Search/index/chunking.py) — core логика chunking
 - [`index/sparse.py`](/Users/boyjayy/Documents/Search/index/sparse.py) — sparse vectors
+- [`eval/ingest.py`](/Users/boyjayy/Documents/Search/eval/ingest.py) — локальный ingestion в Qdrant
 - [`search/main.py`](/Users/boyjayy/Documents/Search/search/main.py) — текущий API `search`
 
 ## 16. Главное разделение ответственности
