@@ -1,30 +1,63 @@
-"""Protocols для модульного chunking.
+from typing import Any
 
-Не Pydantic — чтобы chunking.py не зависел от FastAPI и умел принимать
-и Message-инстансы из main.py, и dict'ы, и mock-объекты в тестах.
-"""
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Any, Protocol
+from pydantic import BaseModel
 
 
-class MessageLike(Protocol):
+class Chat(BaseModel):
     id: str
-    thread_sn: str | None
+    name: str
+    sn: str
+    type: str  # group, channel, private
+    is_public: bool | None = None
+    members_count: int | None = None
+    members: list[dict[str, Any]] | None = None
+
+
+class Message(BaseModel):
+    id: str
+    thread_sn: str | None = None
     time: int
     text: str
     sender_id: str
     file_snippets: str
-    parts: list[dict[str, Any]] | None
-    mentions: list[str] | None
+    parts: list[dict[str, Any]] | None = None
+    mentions: list[str] | None = None
+    member_event: dict[str, Any] | None = None
     is_system: bool
     is_hidden: bool
+    is_forward: bool
+    is_quote: bool
 
 
-@dataclass(frozen=True)
-class ChunkResult:
+class ChatData(BaseModel):
+    chat: Chat
+    overlap_messages: list[Message]
+    new_messages: list[Message]
+
+
+class IndexAPIRequest(BaseModel):
+    data: ChatData
+
+
+class IndexAPIItem(BaseModel):
     page_content: str
     dense_content: str
     sparse_content: str
     message_ids: list[str]
+
+
+class IndexAPIResponse(BaseModel):
+    results: list[IndexAPIItem]
+
+
+class SparseEmbeddingRequest(BaseModel):
+    texts: list[str]
+
+
+class SparseVector(BaseModel):
+    indices: list[int]
+    values: list[float]
+
+
+class SparseEmbeddingResponse(BaseModel):
+    vectors: list[SparseVector]

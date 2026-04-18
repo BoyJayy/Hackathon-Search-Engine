@@ -1,25 +1,59 @@
-"""Chunking configuration.
+import logging
+import os
 
-Значения подобраны эмпирически sweep'ом на Go Nova.json.
-См. docs/ml_description.md § Chunking, секция «Как подбирали параметры».
-Менять вместе с пересчётом eval.
-"""
-from __future__ import annotations
+HOST = os.getenv("HOST", "0.0.0.0")
+PORT = int(os.getenv("PORT", "8004"))
 
-from dataclasses import dataclass
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("index-service")
 
-LOWER_CHARS = 400
-UPPER_CHARS = 1600
-TIME_GAP_SECONDS = 3600
-OVERLAP_MESSAGES = 2
+MAX_CHUNK_CHARS = 1800
+OVERLAP_MESSAGE_COUNT = 2
+OVERLAP_CONTEXT_CHARS = 500
+MAX_TIME_GAP_SECONDS = 3 * 60 * 60
+LONG_MESSAGE_CHAR_THRESHOLD = 1600
+LONG_MESSAGE_LINE_THRESHOLD = 35
+PAGE_TECHNICAL_MAX_LINES = 24
+PAGE_TECHNICAL_MAX_CHARS = 2200
+DENSE_TECHNICAL_MAX_LINES = 10
+DENSE_TECHNICAL_MAX_CHARS = 900
+SPARSE_TECHNICAL_MAX_LINES = 14
+SPARSE_TECHNICAL_MAX_CHARS = 1200
+SPLIT_MESSAGE_CHAR_THRESHOLD = 1200
+SPLIT_SEGMENT_TARGET_CHARS = 700
 
+SHORT_ACK_MESSAGES = {
+    "+",
+    "++",
+    "ага",
+    "да",
+    "нет",
+    "ок",
+    "окей",
+    "понял",
+    "спасибо",
+    "ясно",
+    "yes",
+    "no",
+    "ok",
+    "thanks",
+    "thx",
+}
 
-@dataclass(frozen=True)
-class ChunkingConfig:
-    lower_chars: int = LOWER_CHARS
-    upper_chars: int = UPPER_CHARS
-    time_gap_seconds: int = TIME_GAP_SECONDS
-    overlap_messages: int = OVERLAP_MESSAGES
+SPARSE_MODEL_NAME = "Qdrant/bm25"
+FASTEMBED_CACHE_PATH = "/models/fastembed"
+UVICORN_WORKERS = 8
 
-
-DEFAULT_CONFIG = ChunkingConfig()
+TECHNICAL_TRACE_MARKERS = (
+    "traceback",
+    "exception",
+    "stack trace",
+    "goroutine ",
+    "runtime.",
+    "pc=",
+    "sigabrt",
+    "panic:",
+    " at ",
+    ".go:",
+    ".py:",
+)
