@@ -52,15 +52,20 @@ def join_text_parts(parts: list[str]) -> str:
     return "\n\n".join(part for part in parts if part).strip()
 
 
-def extract_part_texts(message: Message) -> list[str]:
-    parts_text: list[str] = []
+def extract_part_texts(message: Message) -> tuple[list[str], list[str]]:
+    direct_parts: list[str] = []
+    quoted_parts: list[str] = []
     for part in message.parts or []:
         part_text = part.get("text")
         if isinstance(part_text, str):
             normalized = normalize_text(part_text)
             if normalized:
-                parts_text.append(normalized)
-    return parts_text
+                media_type = str(part.get("mediaType") or "").strip().lower()
+                if media_type == "quote":
+                    quoted_parts.append(normalized)
+                else:
+                    direct_parts.append(normalized)
+    return direct_parts, quoted_parts
 
 
 def render_member_event(message: Message) -> str:
@@ -93,9 +98,11 @@ def render_message(message: Message) -> str:
     if normalized_text:
         content_parts.append(normalized_text)
 
-    part_texts = extract_part_texts(message)
-    if part_texts:
-        content_parts.extend(part_texts)
+    direct_part_texts, quoted_part_texts = extract_part_texts(message)
+    if direct_part_texts:
+        content_parts.extend(direct_part_texts)
+    if quoted_part_texts:
+        content_parts.extend(f"Quoted message:\n{part_text}" for part_text in quoted_part_texts)
 
     member_event_text = render_member_event(message)
     if member_event_text:
@@ -417,11 +424,42 @@ def should_flush_chunk(
     return current_size + estimate_page_message_size(next_message) > MAX_CHUNK_CHARS
 
 
+def starts_new_topic(message: NormalizedMessage) -> bool:
+    if message.is_quote or message.is_forward or message.is_system:
+        return False
+
+    compact_text = " ".join(message.text.lower().split())
+    if not compact_text:
+        return False
+
+    greeting_starts = (
+        "всем привет",
+        "всем ещё раз привет",
+        "привет",
+        "привет-привет",
+        "хэй, привет",
+        "друзья, привет",
+    )
+
+    if compact_text.startswith(greeting_starts) and len(compact_text) >= 60:
+        return True
+
+    if "?" in compact_text and len(compact_text) >= 80:
+        return True
+
+    return False
+
+
 def select_overlap_context(messages: list[NormalizedMessage]) -> list[NormalizedMessage]:
     context: list[NormalizedMessage] = []
     total_chars = 0
+    last_added_time: int | None = None
 
     for message in reversed(messages):
+        if context and last_added_time is not None:
+            if last_added_time - message.time > MAX_TIME_GAP_SECONDS:
+                break
+
         message_size = estimate_page_message_size(message)
         if context and (
             len(context) >= OVERLAP_MESSAGE_COUNT
@@ -430,9 +468,30 @@ def select_overlap_context(messages: list[NormalizedMessage]) -> list[Normalized
             break
         context.append(message)
         total_chars += message_size
+        last_added_time = message.time
 
     context.reverse()
     return context
+
+
+def select_thread_aware_overlap_context(
+    messages: list[NormalizedMessage],
+    *,
+    target_thread_sn: str | None,
+) -> list[NormalizedMessage]:
+    if not messages:
+        return []
+
+    same_thread_tail: list[NormalizedMessage] = []
+    for message in reversed(messages):
+        if message.thread_sn != target_thread_sn:
+            break
+        same_thread_tail.append(message)
+
+    if not same_thread_tail:
+        return []
+
+    return select_overlap_context(list(reversed(same_thread_tail)))
 
 
 def build_chunk_item(
@@ -461,16 +520,26 @@ def log_chunk_diagnostics(chunks: list[IndexAPIItem]) -> None:
     page_lengths = [len(chunk.page_content) for chunk in chunks]
     dense_lengths = [len(chunk.dense_content) for chunk in chunks]
     sparse_lengths = [len(chunk.sparse_content) for chunk in chunks]
-    covered_messages = sum(len(chunk.message_ids) for chunk in chunks)
+    message_occurrences: dict[str, int] = {}
+    for chunk in chunks:
+        for message_id in chunk.message_ids:
+            message_occurrences[message_id] = message_occurrences.get(message_id, 0) + 1
+    unique_messages = len(message_occurrences)
+    dup_ratio = (
+        sum(message_occurrences.values()) / unique_messages
+        if unique_messages
+        else 0.0
+    )
     sample_ids = chunks[0].message_ids[:5]
 
     logger.info(
         (
-            "Chunk diagnostics: count=%s, covered_messages=%s, "
+            "Chunk diagnostics: count=%s, unique_messages=%s, dup_ratio=%.2fx, "
             "avg_page=%s, max_page=%s, avg_dense=%s, avg_sparse=%s, sample_ids=%s"
         ),
         len(chunks),
-        covered_messages,
+        unique_messages,
+        dup_ratio,
         sum(page_lengths) // len(page_lengths),
         max(page_lengths),
         sum(dense_lengths) // len(dense_lengths),
@@ -520,14 +589,26 @@ def build_chunks(
     ]
 
     result: list[IndexAPIItem] = []
-    current_context = select_overlap_context(chunkable_overlap)
+    if starts_new_topic(chunkable_new[0]):
+        current_context = []
+    else:
+        current_context = select_thread_aware_overlap_context(
+            chunkable_overlap,
+            target_thread_sn=chunkable_new[0].thread_sn,
+        )
     current_chunk: list[NormalizedMessage] = []
     current_size = sum(estimate_page_message_size(message) for message in current_context)
 
     for message in chunkable_new:
         if should_flush_chunk(current_chunk, message, current_size):
             result.append(build_chunk_item(chat, current_context, current_chunk))
-            current_context = select_overlap_context([*current_context, *current_chunk])
+            if starts_new_topic(message):
+                current_context = []
+            else:
+                current_context = select_thread_aware_overlap_context(
+                    [*current_context, *current_chunk],
+                    target_thread_sn=message.thread_sn,
+                )
             current_chunk = []
             current_size = sum(estimate_page_message_size(item) for item in current_context)
 

@@ -183,6 +183,8 @@ WHITESPACE_RE = re.compile(r"\s+")
 TOKEN_RE = re.compile(r"[\w@./:+-]+", re.UNICODE)
 MESSAGE_BLOCK_SPLIT_RE = re.compile(r"\n\n(?=\[\d{4}-\d{2}-\d{2} )")
 PART_FLAG_RE = re.compile(r"part=(\d+)/(\d+)")
+FLAG_RE = re.compile(r"\|\s*([^\]]+)\]")
+QUOTE_MARKER = "Quoted message:"
 
 
 def normalize_query_text(text: str) -> str:
@@ -416,6 +418,30 @@ def split_page_sections(page_content: str) -> tuple[str, str]:
     return context.strip(), messages.strip()
 
 
+def split_block_header_body(block: str) -> tuple[str, str]:
+    lines = block.splitlines()
+    if not lines:
+        return "", ""
+    return lines[0].strip(), "\n".join(lines[1:]).strip()
+
+
+def block_has_flag(block: str, flag: str) -> bool:
+    header, _ = split_block_header_body(block)
+    match = FLAG_RE.search(header)
+    if not match:
+        return False
+    flags = {item.strip().lower() for item in match.group(1).split(",")}
+    return flag.lower() in flags
+
+
+def split_quoted_text(text: str) -> tuple[str, str]:
+    if QUOTE_MARKER not in text:
+        return text.strip(), ""
+
+    own_text, quoted_text = text.split(QUOTE_MARKER, 1)
+    return own_text.strip(), quoted_text.strip()
+
+
 def get_point_context_text(point: Any) -> str:
     context_text, _ = split_page_sections(str(get_point_payload(point).get("page_content") or ""))
     return normalize_query_text(context_text).lower()
@@ -461,6 +487,7 @@ def score_text_signals(
 
 
 def score_best_message_block(
+    question: Question,
     point: Any,
     *,
     phrase_terms: list[str],
@@ -473,13 +500,32 @@ def score_best_message_block(
 
     best_score = 0.0
     for block in blocks:
-        block_text = normalize_query_text(block).lower()
-        block_score = score_text_signals(
-            block_text,
+        header, body = split_block_header_body(block)
+        own_body, quoted_body = split_quoted_text(body)
+        quote_flag = block_has_flag(block, "quote")
+
+        own_text = normalize_query_text("\n".join(part for part in [header, own_body] if part)).lower()
+        quoted_text = normalize_query_text(quoted_body).lower()
+
+        own_score = score_text_signals(
+            own_text,
             phrase_terms=phrase_terms,
             token_terms=token_terms,
         )
-        if len(block_text) <= 220 and block_score > 0:
+        quoted_score = 0.0
+        if quote_flag and quoted_text:
+            quoted_score = min(
+                score_text_signals(
+                    quoted_text,
+                    phrase_terms=phrase_terms,
+                    token_terms=token_terms,
+                )
+                * 0.2,
+                0.05,
+            )
+
+        block_score = own_score + quoted_score
+        if len(own_text) <= 220 and block_score > 0:
             block_score += 0.03
         best_score = max(best_score, block_score)
 
@@ -530,7 +576,12 @@ def compute_local_boost(question: Question, point: Any) -> float:
     metadata = get_point_metadata(point)
     message_score = score_text_signals(message_text, phrase_terms=phrase_terms, token_terms=token_terms)
     context_score = score_text_signals(context_text, phrase_terms=phrase_terms, token_terms=token_terms)
-    best_block_score = score_best_message_block(point, phrase_terms=phrase_terms, token_terms=token_terms)
+    best_block_score = score_best_message_block(
+        question,
+        point,
+        phrase_terms=phrase_terms,
+        token_terms=token_terms,
+    )
     context_penalty = 0.0
     if context_score > 0 and message_score == 0 and best_block_score == 0:
         context_penalty = 0.08
@@ -581,6 +632,37 @@ async def embed_dense_many(
         raise ValueError("Dense embedding response is empty")
 
     return [item.embedding for item in sorted(payload.data, key=lambda item: item.index)]
+
+
+async def embed_dense_many_safe(
+    client: httpx.AsyncClient,
+    texts: list[str],
+) -> list[list[float]]:
+    if not texts:
+        return []
+
+    try:
+        return await embed_dense_many(client, texts)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            logger.warning(
+                "Dense embedding API rate-limited the request; using sparse-only retrieval for %s queries",
+                len(texts),
+            )
+            return []
+        logger.warning(
+            "Dense embedding API HTTP error %s; using sparse-only retrieval for %s queries",
+            exc.response.status_code,
+            len(texts),
+        )
+        return []
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning(
+            "Dense embedding request failed (%s); using sparse-only retrieval for %s queries",
+            exc.__class__.__name__,
+            len(texts),
+        )
+        return []
 
 
 async def embed_sparse_many(texts: list[str]) -> list[SparseVector]:
@@ -720,14 +802,35 @@ def score_message_block(
 ) -> float:
     phrase_terms = build_phrase_terms(question)
     token_terms = build_query_signal_tokens(question)
-    block_text = normalize_query_text(block).lower()
-    block_score = score_text_signals(
-        block_text,
+    header, body = split_block_header_body(block)
+    own_body, quoted_body = split_quoted_text(body)
+    quote_flag = block_has_flag(block, "quote")
+
+    own_text = normalize_query_text("\n".join(part for part in [header, own_body] if part)).lower()
+    quoted_text = normalize_query_text(quoted_body).lower()
+
+    own_score = score_text_signals(
+        own_text,
         phrase_terms=phrase_terms,
         token_terms=token_terms,
     )
-    if len(block_text) <= 220 and block_score > 0:
+    quoted_score = 0.0
+    if quote_flag and quoted_text:
+        quoted_score = min(
+            score_text_signals(
+                quoted_text,
+                phrase_terms=phrase_terms,
+                token_terms=token_terms,
+            )
+            * 0.2,
+            0.05,
+        )
+
+    block_score = own_score + quoted_score
+    if len(own_text) <= 220 and block_score > 0:
         block_score += 0.03
+    if query_prefers_earliest_message(question) and quote_flag and own_score == 0 and quoted_score > 0:
+        block_score -= 0.05
     if query_prefers_earliest_message(question):
         block_score += max(0.0, 0.04 - message_index * 0.01)
     return block_score
@@ -809,7 +912,19 @@ async def rerank_points(
                 len(rerank_candidates),
             )
             return points
-        raise
+        logger.warning(
+            "Reranker HTTP error %s; using retrieval order fallback for %s candidates",
+            exc.response.status_code,
+            len(rerank_candidates),
+        )
+        return points
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning(
+            "Reranker request failed (%s); using retrieval order fallback for %s candidates",
+            exc.__class__.__name__,
+            len(rerank_candidates),
+        )
+        return points
 
     reranked_candidates = [
         point
@@ -845,9 +960,12 @@ async def search(payload: SearchAPIRequest) -> SearchAPIResponse:
     sparse_queries = build_sparse_queries(payload.question)
 
     dense_vectors, sparse_vectors = await asyncio.gather(
-        embed_dense_many(client, dense_queries),
+        embed_dense_many_safe(client, dense_queries),
         embed_sparse_many(sparse_queries),
     )
+    if not dense_vectors and not sparse_vectors:
+        return SearchAPIResponse(results=[])
+
     best_points = await qdrant_search(qdrant, dense_vectors, sparse_vectors)
 
     if best_points is None:

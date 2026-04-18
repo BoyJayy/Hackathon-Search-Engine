@@ -32,11 +32,15 @@
 Текущий `index` уже не является заглушкой:
 - нормализует `text`, `parts`, `file_snippets`, `mentions`;
 - преобразует `member_event` системных сообщений в searchable text;
+- размечает quoted-части сообщений отдельным блоком `Quoted message:`, чтобы ответ и цитата не смешивались в один сплошной текст;
 - фильтрует скрытые и шумные сообщения;
-- делает message-based chunking с overlap-контекстом;
+- делает message-based chunking с thread-aware overlap-контекстом;
+- не протягивает overlap через большие временные разрывы;
+- сбрасывает overlap для явных новых top-level тем, чтобы новый вопрос не наследовал старое обсуждение только из-за близкого времени;
 - сжимает длинные технические логи;
 - режет очень длинные обычные сообщения на большие смысловые части;
 - формирует разные `page_content`, `dense_content`, `sparse_content`;
+- пишет расширенную диагностику чанков в логи;
 - сохраняет корректные `message_ids`.
 
 Текущий `search` уже использует enriched question заметно сильнее baseline:
@@ -46,12 +50,14 @@
 - объединяет retrieval через `RRF`;
 - делает мягкий local rescoring по exact signals, `entities`, `participants` / `mentions` и `date_range`;
 - сильнее доверяет совпадениям в `MESSAGES`, а не случайным совпадениям в `CONTEXT`, чтобы соседние чанки не обгоняли реальный ответ;
+- при совпадениях в quoted-блоке доверяет своей реплике сильнее, чем процитированному тексту;
 - делает ограниченный rerank top-кандидатов;
 - отправляет во внешний reranker текст кандидата в формате `MESSAGES -> CONTEXT`, чтобы точный ответ внутри чанка не терялся за overlap-контекстом;
 - умеет мягко переупорядочивать `message_ids` внутри найденного chunk;
 - собирает финальную выдачу уже на уровне отдельных `message_id`, а не только на уровне chunk order;
 - режет слишком длинные тексты перед rerank;
-- при `429` от внешнего reranker использует fallback на retrieval order вместо падения `500`;
+- при `429` и других сбоях внешнего dense API использует sparse-only fallback вместо падения `500`;
+- при `429` и других сбоях внешнего reranker использует fallback на retrieval order вместо падения `500`;
 - дедуплицирует `message_ids` и ограничивает выдачу top-50.
 
 ## Что менять можно
@@ -126,6 +132,20 @@ curl -X POST "http://localhost:8000/index" \
 - сжатие логов через `... [N lines omitted] ...`;
 - split длинных сообщений через `part=1/2`, `part=2/2`.
 
+Для тюнинга chunking есть отдельный локальный инструмент:
+
+```bash
+python3 scripts/chunking_diagnostic.py
+python3 scripts/chunking_diagnostic.py data/Go\ Nova.json
+```
+
+Он показывает:
+- распределение размеров чанков;
+- messages-per-chunk;
+- coverage searchable сообщений;
+- `dup_ratio`;
+- короткий preview каждого chunk.
+
 ## Внешний dense/rerank API
 
 Хакатонный внешний API:
@@ -174,6 +194,18 @@ python3 eval/ingest.py
 - считает sparse vectors через `POST /sparse_embedding`;
 - удаляет старые точки этого же чата;
 - делает upsert в Qdrant со стабильными id.
+
+Для новых synthetic eval-наборов тоже поддерживается локальный ingest:
+
+```bash
+DATA_PATH=data/dataset_ts.jsonl RESET_COLLECTION=1 python3 eval/ingest.py
+```
+
+В этом режиме `eval/ingest.py`:
+- читает JSONL с полями `question` / `answer`;
+- строит synthetic corpus прямо из `answer.text`;
+- сохраняет `answer.message_ids` как реальные `message_ids` в Qdrant;
+- пересоздаёт коллекцию, чтобы старый локальный индекс не мешал новым eval-наборам.
 
 После этого можно гонять поиск или локальный eval harness:
 

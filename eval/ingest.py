@@ -1,4 +1,4 @@
-"""Populate Qdrant from data/Go Nova.json by calling index service + dense API.
+"""Populate Qdrant from a local corpus into Qdrant.
 
 Usage:
     python eval/ingest.py
@@ -15,6 +15,7 @@ Optional env:
     DATA_PATH                    (default data/Go Nova.json)
     BATCH_SIZE                   (default 16)
     DELETE_EXISTING_CHAT_POINTS  (default 1)
+    RESET_COLLECTION             (default 0; useful for synthetic JSONL corpora)
 """
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ import json
 import os
 import uuid
 from pathlib import Path
+from typing import Any
 
 import httpx
 from qdrant_client import QdrantClient, models
@@ -38,6 +40,7 @@ PASSWORD = os.environ["OPEN_API_PASSWORD"]
 DATA_PATH = Path(os.getenv("DATA_PATH", "data/Go Nova.json"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "16"))
 DELETE_EXISTING_CHAT_POINTS = os.getenv("DELETE_EXISTING_CHAT_POINTS", "1") == "1"
+RESET_COLLECTION = os.getenv("RESET_COLLECTION", "0") == "1"
 
 _CHUNK_ID_NAMESPACE = uuid.UUID("6f8c3a1e-0000-0000-0000-000000000001")
 
@@ -61,6 +64,12 @@ def ensure_collection(qc: QdrantClient, name: str, dense_size: int) -> None:
         },
     )
     print(f"      created collection {name} (dense={dense_size}, sparse=bm25+IDF)")
+
+
+def recreate_collection(qc: QdrantClient, name: str, dense_size: int) -> None:
+    if qc.collection_exists(name):
+        qc.delete_collection(name)
+    ensure_collection(qc, name, dense_size)
 
 
 def delete_existing_chat_points(qc: QdrantClient, collection_name: str, chat_id: str) -> None:
@@ -116,23 +125,111 @@ def build_metadata(chat: dict, chunk: dict, messages_by_id: dict) -> dict:
     }
 
 
-def main() -> None:
-    data = json.loads(DATA_PATH.read_text())
+def load_index_payload(data_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    data = json.loads(data_path.read_text())
     chat = data["chat"]
     messages = data["messages"]
     messages_by_id = {m["id"]: m for m in messages}
+    return chat, messages, messages_by_id
 
+
+def load_synthetic_eval_chunks(data_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    chat = {
+        "id": f"synthetic://{data_path.stem}",
+        "name": f"Synthetic Eval Corpus {data_path.stem}",
+        "sn": f"synthetic://{data_path.stem}",
+        "type": "group",
+        "is_public": False,
+        "members_count": 0,
+        "members": [],
+    }
+
+    chunks: list[dict[str, Any]] = []
+    messages_by_id: dict[str, dict[str, Any]] = {}
+    seen_ids: set[str] = set()
+    base_time = 1_700_000_000
+
+    with data_path.open() as fh:
+        for index, line in enumerate(fh):
+            line = line.strip()
+            if not line:
+                continue
+            entry = json.loads(line)
+            answer = entry.get("answer") or {}
+            message_ids = [str(message_id) for message_id in (answer.get("message_ids") or []) if message_id]
+            answer_text = str(answer.get("text") or "").strip()
+            if not message_ids or not answer_text:
+                continue
+
+            for message_id in message_ids:
+                if message_id in seen_ids:
+                    continue
+                seen_ids.add(message_id)
+                timestamp = base_time + len(seen_ids)
+                messages_by_id[message_id] = {
+                    "id": message_id,
+                    "time": timestamp,
+                    "sender_id": "synthetic@eval.local",
+                    "mentions": [],
+                    "thread_sn": None,
+                    "is_forward": False,
+                    "is_quote": False,
+                }
+                chunks.append(
+                    {
+                        "page_content": (
+                            f"CHAT: {chat['name']}\n\n"
+                            f"CHAT_TYPE: {chat['type']}\n\n"
+                            f"CHAT_ID: {chat['id']}\n\n"
+                            "MESSAGES:\n\n"
+                            f"[2023-11-14 22:13:{timestamp % 60:02d} UTC | synthetic@eval.local]\n"
+                            f"{answer_text}"
+                        ),
+                        "dense_content": f"chat {chat['name']}\n\nchat_type {chat['type']}\n\n{answer_text}",
+                        "sparse_content": (
+                            f"{chat['name']}\n{chat['type']}\n{chat['id']}\n"
+                            f"{answer_text}\n\nsender: synthetic@eval.local"
+                        ),
+                        "message_ids": [message_id],
+                    }
+                )
+
+    return chat, chunks, messages_by_id
+
+
+def is_synthetic_eval_jsonl(data_path: Path) -> bool:
+    if data_path.suffix.lower() != ".jsonl":
+        return False
+    with data_path.open() as fh:
+        first_line = fh.readline().strip()
+    if not first_line:
+        return False
+    try:
+        first = json.loads(first_line)
+    except json.JSONDecodeError:
+        return False
+    return "question" in first and "answer" in first
+
+
+def main() -> None:
     http = httpx.Client()
 
-    print(f"[1/4] POST /index  ({len(messages)} msgs)")
-    r = http.post(
-        f"{INDEX_URL}/index",
-        json={"data": {"chat": chat, "overlap_messages": [], "new_messages": messages}},
-        timeout=300.0,
-    )
-    r.raise_for_status()
-    chunks = r.json()["results"]
-    print(f"      -> {len(chunks)} chunks")
+    synthetic_mode = is_synthetic_eval_jsonl(DATA_PATH)
+    if synthetic_mode:
+        print(f"[1/4] build synthetic corpus from {DATA_PATH}")
+        chat, chunks, messages_by_id = load_synthetic_eval_chunks(DATA_PATH)
+        print(f"      -> {len(chunks)} synthetic chunks")
+    else:
+        chat, messages, messages_by_id = load_index_payload(DATA_PATH)
+        print(f"[1/4] POST /index  ({len(messages)} msgs)")
+        r = http.post(
+            f"{INDEX_URL}/index",
+            json={"data": {"chat": chat, "overlap_messages": [], "new_messages": messages}},
+            timeout=300.0,
+        )
+        r.raise_for_status()
+        chunks = r.json()["results"]
+        print(f"      -> {len(chunks)} chunks")
 
     print("[2/4] POST /sparse_embedding  (batch)")
     r = http.post(
@@ -153,8 +250,12 @@ def main() -> None:
 
     print(f"[4/4] Qdrant upsert  -> {COLLECTION}")
     qc = QdrantClient(url=QDRANT_URL)
-    ensure_collection(qc, COLLECTION, DENSE_SIZE)
-    if DELETE_EXISTING_CHAT_POINTS:
+    if RESET_COLLECTION:
+        print(f"      recreating collection {COLLECTION}")
+        recreate_collection(qc, COLLECTION, DENSE_SIZE)
+    else:
+        ensure_collection(qc, COLLECTION, DENSE_SIZE)
+    if DELETE_EXISTING_CHAT_POINTS and not RESET_COLLECTION:
         print(f"      deleting existing points for chat {chat['id']}")
         delete_existing_chat_points(qc, COLLECTION, chat["id"])
     points = []
