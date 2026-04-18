@@ -1,0 +1,1 @@
+"""Index pipeline orchestration placeholder."""

@@ -1,0 +1,1 @@
+"""Index service schemas placeholder."""

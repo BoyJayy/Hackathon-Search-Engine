@@ -1,0 +1,1 @@
+"""Sparse embedding helpers placeholder."""
