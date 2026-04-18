@@ -1,0 +1,26 @@
+[project]
+name = "hackathon-search-engine"
+version = "0.1.0"
+requires-python = ">=3.13"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "E501", # line too long, handled by black
+    "B008", # do not perform function calls in argument defaults
+    "B904", # Allow raising exceptions without from e, for HTTPException,
+    "RUF001",
+    "D10", # docstring missing,
+    "EXE002",
+    "D203",
+    "D213",
+    "COM812",
+    "FBT",
+    "ANN",
+    "BLE001",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.11",
+]
