@@ -531,6 +531,32 @@ def build_chunk_item(
     )
 
 
+def log_chunk_diagnostics(chunks: list[IndexAPIItem]) -> None:
+    if not chunks:
+        logger.info("Chunk diagnostics: no chunks produced")
+        return
+
+    page_lengths = [len(chunk.page_content) for chunk in chunks]
+    dense_lengths = [len(chunk.dense_content) for chunk in chunks]
+    sparse_lengths = [len(chunk.sparse_content) for chunk in chunks]
+    covered_messages = sum(len(chunk.message_ids) for chunk in chunks)
+    sample_ids = chunks[0].message_ids[:5]
+
+    logger.info(
+        (
+            "Chunk diagnostics: count=%s, covered_messages=%s, "
+            "avg_page=%s, max_page=%s, avg_dense=%s, avg_sparse=%s, sample_ids=%s"
+        ),
+        len(chunks),
+        covered_messages,
+        sum(page_lengths) // len(page_lengths),
+        max(page_lengths),
+        sum(dense_lengths) // len(dense_lengths),
+        sum(sparse_lengths) // len(sparse_lengths),
+        sample_ids,
+    )
+
+
 def build_chunks(
     chat: Chat,
     overlap_messages: list[Message],
@@ -596,6 +622,7 @@ def build_chunks(
         len(new_messages),
         len(searchable_new),
     )
+    log_chunk_diagnostics(result)
 
     return result
 
