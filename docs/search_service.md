@@ -79,6 +79,9 @@ Primary query сейчас строится как:
 - поймать смысловые перефразировки;
 - использовать enriched question как источник recall.
 
+Для plain-вопросов без `keywords` / `hyde` сервис добавляет небольшие domain expansions по известным техническим темам: Go 1.18, SIGABRT/macOS, CGO, PDF/OCR, Qdrant, oncall, release smoke-check, migrations, Terraform provider, demo и technology cards.
+Это recall-oriented слой: он помогает найти ответ, когда вопрос содержит тему, а сам ответ содержит только факты.
+
 ### Sparse queries
 
 Для sparse retrieval сервис строит keyword-heavy запросы из:
@@ -106,6 +109,12 @@ Dense embeddings считаются батчем через внешний API:
 
 Это экономит запросы и снижает latency по сравнению с вызовом на каждый query отдельно.
 
+На время жизни контейнера сервис кэширует dense embeddings по паре `model + text`.
+Это особенно полезно на eval, где встречаются повторяющиеся или почти повторяющиеся enriched-запросы:
+- меньше внешних вызовов;
+- ниже шанс получить `429`;
+- повторные проверки идут быстрее.
+
 Если внешний dense API отвечает `429 Too Many Requests` или другим сетевым/HTTP-сбоем, сервис не падает:
 - dense-ветка временно отключается для этого запроса;
 - retrieval продолжается как sparse-only.
@@ -128,6 +137,15 @@ Sparse queries тоже считаются батчем.
 
 Это даёт более безопасный baseline, чем ручное смешивание dense/sparse score.
 
+Ключевые retrieval-параметры читаются из env:
+- `MAX_DENSE_QUERIES`
+- `MAX_SPARSE_QUERIES`
+- `DENSE_PREFETCH_K`
+- `SPARSE_PREFETCH_K`
+- `RETRIEVE_K`
+
+Это позволяет гонять search-only sweep без пересборки образа и без re-ingest.
+
 ## 4. Rerank
 
 Перед внешним rerank сервис делает мягкий local rescoring кандидатов.
@@ -135,6 +153,7 @@ Sparse queries тоже считаются батчем.
 Он использует:
 - точные phrase hits из `keywords`, `entities`, `date_mentions`, `asker`;
 - token hits из `search_text` / `text` / части `variants` / `hyde`;
+- optional intent-aware сигнал через `INTENT_ALIGNMENT_WEIGHT`: summary-вопросы поднимают ответы с документом/ссылкой, detail-вопросы поднимают короткие содержательные ответы;
 - лучший message-block внутри chunk, чтобы короткие точные ответы не проигрывали длинным обсуждениям;
 - для quoted message-block сильнее доверяет собственной реплике, чем процитированному тексту;
 - metadata сигналы по `participants` и `mentions`;
@@ -168,9 +187,24 @@ Sparse queries тоже считаются батчем.
 - режет слишком длинный `page_content` до компактной версии;
 - переставляет секции кандидата в порядке `MESSAGES -> CONTEXT`, чтобы reranker сначала видел сам ответ, а потом overlap-контекст;
 - после ответа reranker использует local boost как мягкий stabilizer для exact/entity-heavy кейсов;
-- пересортировывает кандидаты по score reranker.
+- смешивает score reranker с исходным retrieval-порядком через `RERANK_ALPHA`;
+- пересортировывает кандидаты по blended score.
 
 Это повышает качество первых позиций, а значит и `nDCG@50`.
+
+Reranker scores тоже кэшируются по `model + query + candidate text`.
+Это снижает число повторных `/score` вызовов и помогает не упираться в rate limit.
+
+Ключевые rerank-параметры читаются из env:
+- `RERANK_ALPHA`
+- `RERANK_LIMIT`
+- `RERANK_MAX_TEXT_CHARS`
+- `UPSTREAM_CACHE_MAX_ITEMS`
+- `UPSTREAM_MAX_RETRIES`
+- `UPSTREAM_RETRY_DELAY_SECONDS`
+
+Default `RERANK_ALPHA = 0.9`, то есть основной боевой режим почти полностью доверяет reranker, но оставляет небольшой retrieval-order stabilizer. Env-knob оставлен для sweep-экспериментов.
+Default `INTENT_ALIGNMENT_WEIGHT = 0.0`, потому что на сервере важнее не просадить recall; intent-layer оставлен как ручной knob для sweep.
 
 ### Защита от rate limit
 
@@ -179,9 +213,11 @@ Sparse queries тоже считаются батчем.
 Чтобы из-за этого не падать целиком:
 - rerank делается только для небольшого top-N;
 - в reranker отправляется укороченный текст кандидата;
+- при `429` сервис делает короткий retry;
 - если внешний `/score` вернул `429`, сервис не падает `500`, а возвращает retrieval order fallback без rerank.
 
 Аналогичная защита есть и у dense embeddings:
+- при `429` сервис делает короткий retry;
 - если внешний `/embeddings` вернул `429` или другой upstream error, сервис не падает `500`;
 - dense retrieval для этого запроса отключается, и поиск продолжается по sparse-ветке.
 

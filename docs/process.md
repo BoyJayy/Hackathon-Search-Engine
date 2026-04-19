@@ -172,6 +172,7 @@ sparse_content
 - `text`
 - часть `variants`
 - часть `hyde`
+- domain expansions для plain-вопросов по известным техническим темам: Go 1.18, SIGABRT/macOS, CGO, PDF/OCR, Qdrant, oncall, release smoke-check, migrations, Terraform provider, demo и technology cards
 
 Потом они батчем отправляются во внешний dense API:
 
@@ -180,6 +181,9 @@ dense_query_texts[]
 -> POST /embeddings
 -> dense query vectors[]
 ```
+
+Dense query vectors кэшируются внутри `search` на время жизни контейнера.
+Если следующий запрос использует тот же query text, внешний `/embeddings` повторно не вызывается.
 
 Если внешний dense API отвечает `429 Too Many Requests` или другим upstream error,
 поиск не падает:
@@ -287,7 +291,11 @@ Reranker получает:
 Практически важно не перегружать внешний reranker:
 - реранкать только ограниченный top-N;
 - не отправлять бесконечно длинный `page_content`;
+- кэшировать score для одинаковых `query + candidate`;
+- делать короткий retry при `429`;
 - после ответа reranker можно сохранять мягкий local boost как stabilizer для exact matches;
+- опционально добавлять intent-aware boost через `INTENT_ALIGNMENT_WEIGHT`: summary-вопросам полезны документы/ссылки, detail-вопросам полезны короткие содержательные ответы;
+- смешивать score reranker с исходным retrieval-порядком через `RERANK_ALPHA`, чтобы reranker не перетирал хороший prefetch слишком агрессивно;
 - при `429 Too Many Requests` и других HTTP / parsing сбоях использовать fallback на retrieval order, а не валить весь `search`.
 
 ## 12. Final answer assembly
