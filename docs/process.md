@@ -289,6 +289,7 @@ Reranker получает:
 - точнее пересортировать уже найденные хорошие кандидаты.
 
 Практически важно не перегружать внешний reranker:
+- default боевой конфиг сейчас broadened: `DENSE_PREFETCH_K=70`, `RETRIEVE_K=150`, `RERANK_LIMIT=20`, `MAX_SPARSE_QUERIES=8`, `RERANK_ALPHA=0.3`;
 - реранкать только ограниченный top-N;
 - не отправлять бесконечно длинный `page_content`;
 - кэшировать score для одинаковых `query + candidate`;

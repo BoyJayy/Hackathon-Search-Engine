@@ -58,6 +58,7 @@
 - умеет мягко переупорядочивать `message_ids` внутри найденного chunk;
 - собирает финальную выдачу уже на уровне отдельных `message_id`, а не только на уровне chunk order;
 - читает retrieval/rerank параметры из env, чтобы быстро тюнить качество без правки кода;
+- по умолчанию стартует на broadened retrieval/rerank конфиге: `DENSE_PREFETCH_K=70`, `RETRIEVE_K=150`, `RERANK_LIMIT=20`, `MAX_SPARSE_QUERIES=8`, `RERANK_ALPHA=0.3`;
 - смешивает внешний rerank score с исходным retrieval-порядком через `RERANK_ALPHA`, чтобы reranker не перетирал хороший prefetch слишком агрессивно;
 - кэширует dense embeddings и reranker scores на время жизни контейнера, чтобы снижать риск `429` на повторяющихся вопросах;
 - режет слишком длинные тексты перед rerank;

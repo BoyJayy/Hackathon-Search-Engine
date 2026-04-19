@@ -203,7 +203,8 @@ Reranker scores тоже кэшируются по `model + query + candidate te
 - `UPSTREAM_MAX_RETRIES`
 - `UPSTREAM_RETRY_DELAY_SECONDS`
 
-Default `RERANK_ALPHA = 0.9`, то есть основной боевой режим почти полностью доверяет reranker, но оставляет небольшой retrieval-order stabilizer. Env-knob оставлен для sweep-экспериментов.
+Default `RERANK_ALPHA = 0.3`, то есть боевой режим делает blended rerank, но оставляет retrieval order основным якорем. Это recall-safe и всё ещё поднимает первые позиции.
+Default retrieval depth тоже broadened: `DENSE_PREFETCH_K = 70`, `RETRIEVE_K = 150`, `RERANK_LIMIT = 20`, `MAX_SPARSE_QUERIES = 8`.
 Default `INTENT_ALIGNMENT_WEIGHT = 0.0`, потому что на сервере важнее не просадить recall; intent-layer оставлен как ручной knob для sweep.
 
 ### Защита от rate limit

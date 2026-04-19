@@ -207,15 +207,15 @@ def getenv_float(name: str, default: float, *, min_value: float | None = None, m
     return value
 
 
-DENSE_PREFETCH_K = getenv_int("DENSE_PREFETCH_K", 45, min_value=1)
+DENSE_PREFETCH_K = getenv_int("DENSE_PREFETCH_K", 70, min_value=1)
 SPARSE_PREFETCH_K = getenv_int("SPARSE_PREFETCH_K", 45, min_value=1)
-RETRIEVE_K = getenv_int("RETRIEVE_K", 60, min_value=1)
-RERANK_LIMIT = getenv_int("RERANK_LIMIT", 8, min_value=0)
-RERANK_ALPHA = getenv_float("RERANK_ALPHA", 0.9, min_value=0.0, max_value=1.0)
+RETRIEVE_K = getenv_int("RETRIEVE_K", 150, min_value=1)
+RERANK_LIMIT = getenv_int("RERANK_LIMIT", 20, min_value=0)
+RERANK_ALPHA = getenv_float("RERANK_ALPHA", 0.3, min_value=0.0, max_value=1.0)
 RERANK_MAX_TEXT_CHARS = getenv_int("RERANK_MAX_TEXT_CHARS", 1200, min_value=200)
 FINAL_MESSAGE_LIMIT = getenv_int("FINAL_MESSAGE_LIMIT", 50, min_value=1, max_value=50)
 MAX_DENSE_QUERIES = getenv_int("MAX_DENSE_QUERIES", 8, min_value=1, max_value=8)
-MAX_SPARSE_QUERIES = getenv_int("MAX_SPARSE_QUERIES", 6, min_value=1, max_value=8)
+MAX_SPARSE_QUERIES = getenv_int("MAX_SPARSE_QUERIES", 8, min_value=1, max_value=8)
 UPSTREAM_CACHE_MAX_ITEMS = getenv_int("UPSTREAM_CACHE_MAX_ITEMS", 20_000, min_value=0)
 UPSTREAM_MAX_RETRIES = getenv_int("UPSTREAM_MAX_RETRIES", 1, min_value=0, max_value=3)
 UPSTREAM_RETRY_DELAY_SECONDS = getenv_float("UPSTREAM_RETRY_DELAY_SECONDS", 0.25, min_value=0.0, max_value=3.0)
