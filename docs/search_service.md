@@ -106,6 +106,12 @@ Dense embeddings считаются батчем через внешний API:
 
 Это экономит запросы и снижает latency по сравнению с вызовом на каждый query отдельно.
 
+На время жизни контейнера сервис кэширует dense embeddings по паре `model + text`.
+Это особенно полезно на eval, где встречаются повторяющиеся или почти повторяющиеся enriched-запросы:
+- меньше внешних вызовов;
+- ниже шанс получить `429`;
+- повторные проверки идут быстрее.
+
 Если внешний dense API отвечает `429 Too Many Requests` или другим сетевым/HTTP-сбоем, сервис не падает:
 - dense-ветка временно отключается для этого запроса;
 - retrieval продолжается как sparse-only.
@@ -127,6 +133,15 @@ Sparse queries тоже считаются батчем.
 - `Fusion.RRF`
 
 Это даёт более безопасный baseline, чем ручное смешивание dense/sparse score.
+
+Ключевые retrieval-параметры читаются из env:
+- `MAX_DENSE_QUERIES`
+- `MAX_SPARSE_QUERIES`
+- `DENSE_PREFETCH_K`
+- `SPARSE_PREFETCH_K`
+- `RETRIEVE_K`
+
+Это позволяет гонять search-only sweep без пересборки образа и без re-ingest.
 
 ## 4. Rerank
 
@@ -168,9 +183,21 @@ Sparse queries тоже считаются батчем.
 - режет слишком длинный `page_content` до компактной версии;
 - переставляет секции кандидата в порядке `MESSAGES -> CONTEXT`, чтобы reranker сначала видел сам ответ, а потом overlap-контекст;
 - после ответа reranker использует local boost как мягкий stabilizer для exact/entity-heavy кейсов;
-- пересортировывает кандидаты по score reranker.
+- смешивает score reranker с исходным retrieval-порядком через `RERANK_ALPHA`;
+- пересортировывает кандидаты по blended score.
 
 Это повышает качество первых позиций, а значит и `nDCG@50`.
+
+Reranker scores тоже кэшируются по `model + query + candidate text`.
+Это снижает число повторных `/score` вызовов и помогает не упираться в rate limit.
+
+Ключевые rerank-параметры читаются из env:
+- `RERANK_ALPHA`
+- `RERANK_LIMIT`
+- `RERANK_MAX_TEXT_CHARS`
+- `UPSTREAM_CACHE_MAX_ITEMS`
+- `UPSTREAM_MAX_RETRIES`
+- `UPSTREAM_RETRY_DELAY_SECONDS`
 
 ### Защита от rate limit
 
@@ -179,9 +206,11 @@ Sparse queries тоже считаются батчем.
 Чтобы из-за этого не падать целиком:
 - rerank делается только для небольшого top-N;
 - в reranker отправляется укороченный текст кандидата;
+- при `429` сервис делает короткий retry;
 - если внешний `/score` вернул `429`, сервис не падает `500`, а возвращает retrieval order fallback без rerank.
 
 Аналогичная защита есть и у dense embeddings:
+- при `429` сервис делает короткий retry;
 - если внешний `/embeddings` вернул `429` или другой upstream error, сервис не падает `500`;
 - dense retrieval для этого запроса отключается, и поиск продолжается по sparse-ветке.
 

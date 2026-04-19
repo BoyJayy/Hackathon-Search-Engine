@@ -171,20 +171,95 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Search Service", version="0.1.0", lifespan=lifespan)
 
 
-DENSE_PREFETCH_K = 45
-SPARSE_PREFETCH_K = 45
-RETRIEVE_K = 60
-RERANK_LIMIT = 8
-RERANK_MAX_TEXT_CHARS = 1200
-FINAL_MESSAGE_LIMIT = 50
-MAX_DENSE_QUERIES = 8
-MAX_SPARSE_QUERIES = 6
+def getenv_int(name: str, default: int, *, min_value: int | None = None, max_value: int | None = None) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        value = default
+    else:
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning("Invalid integer env %s=%r; using default %s", name, raw, default)
+            value = default
+
+    if min_value is not None:
+        value = max(min_value, value)
+    if max_value is not None:
+        value = min(max_value, value)
+    return value
+
+
+def getenv_float(name: str, default: float, *, min_value: float | None = None, max_value: float | None = None) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        value = default
+    else:
+        try:
+            value = float(raw)
+        except ValueError:
+            logger.warning("Invalid float env %s=%r; using default %s", name, raw, default)
+            value = default
+
+    if min_value is not None:
+        value = max(min_value, value)
+    if max_value is not None:
+        value = min(max_value, value)
+    return value
+
+
+DENSE_PREFETCH_K = getenv_int("DENSE_PREFETCH_K", 45, min_value=1)
+SPARSE_PREFETCH_K = getenv_int("SPARSE_PREFETCH_K", 45, min_value=1)
+RETRIEVE_K = getenv_int("RETRIEVE_K", 60, min_value=1)
+RERANK_LIMIT = getenv_int("RERANK_LIMIT", 8, min_value=0)
+RERANK_ALPHA = getenv_float("RERANK_ALPHA", 0.5, min_value=0.0, max_value=1.0)
+RERANK_MAX_TEXT_CHARS = getenv_int("RERANK_MAX_TEXT_CHARS", 1200, min_value=200)
+FINAL_MESSAGE_LIMIT = getenv_int("FINAL_MESSAGE_LIMIT", 50, min_value=1, max_value=50)
+MAX_DENSE_QUERIES = getenv_int("MAX_DENSE_QUERIES", 8, min_value=1, max_value=8)
+MAX_SPARSE_QUERIES = getenv_int("MAX_SPARSE_QUERIES", 6, min_value=1, max_value=8)
+UPSTREAM_CACHE_MAX_ITEMS = getenv_int("UPSTREAM_CACHE_MAX_ITEMS", 20_000, min_value=0)
+UPSTREAM_MAX_RETRIES = getenv_int("UPSTREAM_MAX_RETRIES", 1, min_value=0, max_value=3)
+UPSTREAM_RETRY_DELAY_SECONDS = getenv_float("UPSTREAM_RETRY_DELAY_SECONDS", 0.25, min_value=0.0, max_value=3.0)
 WHITESPACE_RE = re.compile(r"\s+")
 TOKEN_RE = re.compile(r"[\w@./:+-]+", re.UNICODE)
 MESSAGE_BLOCK_SPLIT_RE = re.compile(r"\n\n(?=\[\d{4}-\d{2}-\d{2} )")
 PART_FLAG_RE = re.compile(r"part=(\d+)/(\d+)")
 FLAG_RE = re.compile(r"\|\s*([^\]]+)\]")
 QUOTE_MARKER = "Quoted message:"
+DENSE_EMBED_CACHE: dict[tuple[str, str], list[float]] = {}
+RERANK_SCORE_CACHE: dict[tuple[str, str, str], float] = {}
+
+
+def cache_set(cache: dict[Any, Any], key: Any, value: Any) -> None:
+    if UPSTREAM_CACHE_MAX_ITEMS <= 0:
+        return
+    if len(cache) >= UPSTREAM_CACHE_MAX_ITEMS:
+        cache.pop(next(iter(cache)))
+    cache[key] = value
+
+
+async def post_upstream_json(
+    client: httpx.AsyncClient,
+    url: str,
+    payload: dict[str, Any],
+    *,
+    purpose: str,
+) -> httpx.Response:
+    for attempt in range(UPSTREAM_MAX_RETRIES + 1):
+        response = await client.post(
+            url,
+            **get_upstream_request_kwargs(),
+            json=payload,
+        )
+        if response.status_code != 429 or attempt >= UPSTREAM_MAX_RETRIES:
+            response.raise_for_status()
+            return response
+
+        delay = UPSTREAM_RETRY_DELAY_SECONDS * (attempt + 1)
+        logger.warning("%s API returned 429; retrying in %.2fs", purpose, delay)
+        if delay > 0:
+            await asyncio.sleep(delay)
+
+    raise RuntimeError("unreachable upstream retry state")
 
 
 def normalize_query_text(text: str) -> str:
@@ -617,21 +692,49 @@ async def embed_dense_many(
     if not texts:
         return []
 
-    response = await client.post(
+    model = os.getenv("EMBEDDINGS_DENSE_MODEL", EMBEDDINGS_DENSE_MODEL)
+    results: list[list[float] | None] = [None] * len(texts)
+    missing_texts: list[str] = []
+    missing_indexes: list[int] = []
+
+    for index, text in enumerate(texts):
+        cache_key = (model, text)
+        cached = DENSE_EMBED_CACHE.get(cache_key)
+        if cached is not None:
+            results[index] = cached
+            continue
+        missing_indexes.append(index)
+        missing_texts.append(text)
+
+    if not missing_texts:
+        return [result for result in results if result is not None]
+
+    response = await post_upstream_json(
+        client,
         EMBEDDINGS_DENSE_URL,
-        **get_upstream_request_kwargs(),
-        json={
-            "model": os.getenv("EMBEDDINGS_DENSE_MODEL", EMBEDDINGS_DENSE_MODEL),
-            "input": texts,
+        {
+            "model": model,
+            "input": missing_texts,
         },
+        purpose="Dense embedding",
     )
-    response.raise_for_status()
 
     payload = DenseEmbeddingResponse.model_validate(response.json())
     if not payload.data:
         raise ValueError("Dense embedding response is empty")
 
-    return [item.embedding for item in sorted(payload.data, key=lambda item: item.index)]
+    sorted_items = sorted(payload.data, key=lambda item: item.index)
+    if len(sorted_items) != len(missing_indexes):
+        raise ValueError("Dense embedding response length mismatch")
+
+    for missing_index, item in zip(missing_indexes, sorted_items, strict=True):
+        results[missing_index] = item.embedding
+        cache_set(DENSE_EMBED_CACHE, (model, texts[missing_index]), item.embedding)
+
+    if any(result is None for result in results):
+        raise ValueError("Dense embedding result assembly failed")
+
+    return [result for result in results if result is not None]
 
 
 async def embed_dense_many_safe(
@@ -868,23 +971,48 @@ async def get_rerank_scores(
     if not targets:
         return []
 
+    results: list[float | None] = [None] * len(targets)
+    missing_targets: list[str] = []
+    missing_indexes: list[int] = []
+    for index, target in enumerate(targets):
+        cache_key = (RERANKER_MODEL, label, target)
+        cached = RERANK_SCORE_CACHE.get(cache_key)
+        if cached is not None:
+            results[index] = cached
+            continue
+        missing_indexes.append(index)
+        missing_targets.append(target)
+
+    if not missing_targets:
+        return [score for score in results if score is not None]
+
     # Rerank endpoint возвращает score для пары query -> candidate text.
-    response = await client.post(
+    response = await post_upstream_json(
+        client,
         RERANKER_URL,
-        **get_upstream_request_kwargs(),
-        json={
+        {
             "model": RERANKER_MODEL,
             "encoding_format": "float",
             "text_1": label,
-            "text_2": targets,
+            "text_2": missing_targets,
         },
+        purpose="Reranker",
     )
-    response.raise_for_status()
 
     payload = response.json()
     data = payload.get("data") or []
+    if len(data) != len(missing_indexes):
+        raise ValueError("Reranker response length mismatch")
 
-    return [float(sample["score"]) for sample in data]
+    for missing_index, sample in zip(missing_indexes, data, strict=True):
+        score = float(sample["score"])
+        results[missing_index] = score
+        cache_set(RERANK_SCORE_CACHE, (RERANKER_MODEL, label, targets[missing_index]), score)
+
+    if any(score is None for score in results):
+        raise ValueError("Reranker score assembly failed")
+
+    return [score for score in results if score is not None]
 
 
 async def rerank_points(
@@ -895,6 +1023,8 @@ async def rerank_points(
 ) -> list[Any]:
     if not points:
         return []
+    if RERANK_LIMIT <= 0 or RERANK_ALPHA <= 0:
+        return points
 
     rerank_candidates = points[:RERANK_LIMIT]
     untouched_tail = points[RERANK_LIMIT:]
@@ -926,14 +1056,28 @@ async def rerank_points(
         )
         return points
 
+    if len(scores) != len(rerank_candidates):
+        logger.warning(
+            "Reranker returned %s scores for %s candidates; using retrieval order fallback",
+            len(scores),
+            len(rerank_candidates),
+        )
+        return points
+
+    reranked_candidates: list[Any] = []
+    scored_candidates: list[tuple[float, float, float, int, Any]] = []
+    total_candidates = max(len(rerank_candidates), 1)
+    for index, (score, point) in enumerate(zip(scores, rerank_candidates, strict=True)):
+        retrieval_rank_score = 1.0 - (index / total_candidates)
+        rerank_score = score + compute_local_boost(question, point)
+        blended_score = (RERANK_ALPHA * rerank_score) + ((1.0 - RERANK_ALPHA) * retrieval_rank_score)
+        scored_candidates.append((blended_score, rerank_score, retrieval_rank_score, -index, point))
+
     reranked_candidates = [
         point
-        for _, _, point in sorted(
-            (
-                (score + compute_local_boost(question, point), score, point)
-                for score, point in zip(scores, rerank_candidates, strict=True)
-            ),
-            key=lambda item: (item[0], item[1]),
+        for _, _, _, _, point in sorted(
+            scored_candidates,
+            key=lambda item: (item[0], item[1], item[2], item[3]),
             reverse=True,
         )
     ]
