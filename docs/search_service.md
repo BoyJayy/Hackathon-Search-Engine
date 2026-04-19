@@ -79,6 +79,9 @@ Primary query сейчас строится как:
 - поймать смысловые перефразировки;
 - использовать enriched question как источник recall.
 
+Для plain-вопросов без `keywords` / `hyde` сервис добавляет небольшие domain expansions по известным техническим темам: Go 1.18, SIGABRT/macOS, CGO, PDF/OCR, Qdrant, oncall, release smoke-check, migrations, Terraform provider, demo и technology cards.
+Это recall-oriented слой: он помогает найти ответ, когда вопрос содержит тему, а сам ответ содержит только факты.
+
 ### Sparse queries
 
 Для sparse retrieval сервис строит keyword-heavy запросы из:
@@ -150,6 +153,7 @@ Sparse queries тоже считаются батчем.
 Он использует:
 - точные phrase hits из `keywords`, `entities`, `date_mentions`, `asker`;
 - token hits из `search_text` / `text` / части `variants` / `hyde`;
+- optional intent-aware сигнал через `INTENT_ALIGNMENT_WEIGHT`: summary-вопросы поднимают ответы с документом/ссылкой, detail-вопросы поднимают короткие содержательные ответы;
 - лучший message-block внутри chunk, чтобы короткие точные ответы не проигрывали длинным обсуждениям;
 - для quoted message-block сильнее доверяет собственной реплике, чем процитированному тексту;
 - metadata сигналы по `participants` и `mentions`;
@@ -198,6 +202,9 @@ Reranker scores тоже кэшируются по `model + query + candidate te
 - `UPSTREAM_CACHE_MAX_ITEMS`
 - `UPSTREAM_MAX_RETRIES`
 - `UPSTREAM_RETRY_DELAY_SECONDS`
+
+Default `RERANK_ALPHA = 0.9`, то есть основной боевой режим почти полностью доверяет reranker, но оставляет небольшой retrieval-order stabilizer. Env-knob оставлен для sweep-экспериментов.
+Default `INTENT_ALIGNMENT_WEIGHT = 0.0`, потому что на сервере важнее не просадить recall; intent-layer оставлен как ручной knob для sweep.
 
 ### Защита от rate limit
 

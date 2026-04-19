@@ -47,8 +47,10 @@
 - берёт `search_text` как primary query;
 - использует несколько dense queries из `text`, `search_text`, `variants`, `hyde`;
 - использует несколько sparse queries из `keywords`, `entities`, `date_mentions`, `asker`;
+- добавляет recall-oriented domain expansions для plain-вопросов по известным техническим темам: Go 1.18, SIGABRT/macOS, CGO, PDF/OCR, Qdrant, oncall, release smoke-check, migrations, Terraform provider, demo и technology cards;
 - объединяет retrieval через `RRF`;
 - делает мягкий local rescoring по exact signals, `entities`, `participants` / `mentions` и `date_range`;
+- поддерживает optional intent-aware scoring через `INTENT_ALIGNMENT_WEIGHT`;
 - сильнее доверяет совпадениям в `MESSAGES`, а не случайным совпадениям в `CONTEXT`, чтобы соседние чанки не обгоняли реальный ответ;
 - при совпадениях в quoted-блоке доверяет своей реплике сильнее, чем процитированному тексту;
 - делает ограниченный rerank top-кандидатов;
