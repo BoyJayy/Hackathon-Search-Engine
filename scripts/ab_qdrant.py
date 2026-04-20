@@ -1,7 +1,7 @@
 """A/B test Qdrant fusion and query-count knobs on a small eval subset.
 
 Usage:
-    python3 scripts/ab_qdrant.py --dataset data/dataset_ts.jsonl --limit 30
+    python3 scripts/ab_qdrant.py --dataset data/Dataset_sweep_questions.jsonl --limit 30
 """
 from __future__ import annotations
 

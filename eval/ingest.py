@@ -12,7 +12,7 @@ Optional env:
     QDRANT_COLLECTION_NAME       (default evaluation)
     EMBEDDINGS_DENSE_URL         (default http://83.166.249.64:18001/embeddings)
     EMBEDDINGS_DENSE_MODEL       (default Qwen/Qwen3-Embedding-0.6B)
-    DATA_PATH                    (default data/Go Nova.json)
+    DATA_PATH                    (default data/Dataset_main.json)
     BATCH_SIZE                   (default 16)
     DELETE_EXISTING_CHAT_POINTS  (default 1)
     RESET_COLLECTION             (default 0; useful for synthetic JSONL corpora)
@@ -37,7 +37,7 @@ DENSE_MODEL = os.getenv("EMBEDDINGS_DENSE_MODEL", "Qwen/Qwen3-Embedding-0.6B")
 DENSE_SIZE = int(os.getenv("EMBEDDINGS_DENSE_SIZE", "1024"))
 LOGIN = os.environ["OPEN_API_LOGIN"]
 PASSWORD = os.environ["OPEN_API_PASSWORD"]
-DATA_PATH = Path(os.getenv("DATA_PATH", "data/Go Nova.json"))
+DATA_PATH = Path(os.getenv("DATA_PATH", "data/Dataset_main.json"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "16"))
 DELETE_EXISTING_CHAT_POINTS = os.getenv("DELETE_EXISTING_CHAT_POINTS", "1") == "1"
 RESET_COLLECTION = os.getenv("RESET_COLLECTION", "0") == "1"

@@ -194,8 +194,8 @@ def main() -> None:
     parser.add_argument("--phase", choices=["smoke", "axis", "custom"], default="axis")
     parser.add_argument("--dry", action="store_true")
     parser.add_argument("--combo", type=str, default=None, help="JSON dict of param overrides for custom phase")
-    parser.add_argument("--data-path", default="data/dataset_ts_chat.json")
-    parser.add_argument("--eval-path", default="data/dataset_ts.jsonl")
+    parser.add_argument("--data-path", default="data/Dataset_sweep.json")
+    parser.add_argument("--eval-path", default="data/Dataset_sweep_questions.jsonl")
     args = parser.parse_args()
 
     if args.dry:

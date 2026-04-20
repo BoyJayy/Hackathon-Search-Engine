@@ -2,7 +2,7 @@
 
 Usage:
     python3 scripts/chunking_diagnostic.py
-    python3 scripts/chunking_diagnostic.py data/Go\\ Nova.json
+    python3 scripts/chunking_diagnostic.py data/Dataset_main.json
 """
 
 from __future__ import annotations
@@ -32,8 +32,13 @@ def histogram(values: list[int], bins: list[tuple[int, int]]) -> Counter[int]:
 
 def load_dataset(path: Path) -> tuple[Chat, list[Message]]:
     raw = json.loads(path.read_text())
-    chat = Chat(**raw["chat"])
-    messages = [Message(**item) for item in raw["messages"]]
+    if "chat" not in raw or "messages" not in raw:
+        data = raw["data"]
+        raw = {"chat": data["chat"], "messages": data["new_messages"]}
+    chat_payload = raw["chat"]
+    messages_payload = raw["messages"]
+    chat = Chat(**chat_payload)
+    messages = [Message(**item) for item in messages_payload]
     return chat, messages
 
 
@@ -42,7 +47,7 @@ def printable_thread_count(messages: list[Message]) -> int:
 
 
 def main() -> int:
-    dataset_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "data" / "Go Nova.json"
+    dataset_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "data" / "Dataset_main.json"
     chat, messages = load_dataset(dataset_path)
 
     normalized_messages = [normalize_message(message, is_overlap=False) for message in messages]

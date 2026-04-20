@@ -63,7 +63,7 @@ python3 eval/ingest.py
 Запустить оценку:
 
 ```bash
-python3 eval/run.py --dataset data/dataset_ts.jsonl --k 50
+python3 eval/run.py --dataset data/Dataset_main_questions.jsonl --k 50
 ```
 
 ## Полезные команды
@@ -87,13 +87,12 @@ curl http://localhost:8002/health
 
 ```bash
 python3 scripts/chunking_diagnostic.py
-python3 scripts/chunking_diagnostic.py data/Go\ Nova.json
+python3 scripts/chunking_diagnostic.py data/Dataset_main.json
 ```
 
 Chunking sweep:
 
 ```bash
-python3 scripts/build_ts_chat.py
 python3 scripts/sweep_chunking.py --phase smoke
 ```
 

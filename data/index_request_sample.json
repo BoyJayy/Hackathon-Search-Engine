@@ -1,9 +1,9 @@
 {
   "data": {
     "chat": {
-      "id": "58201@chat.example",
-      "name": "Go Nova",
-      "sn": "58201@chat.example",
+      "id": "synthetic://dataset-main-sample",
+      "name": "Synthetic Search Eval Main",
+      "sn": "synthetic://dataset-main-sample",
       "type": "group",
       "is_public": true,
       "members_count": 766,
