@@ -1,4 +1,4 @@
-name: Telegram All-in-One Repo Feed
+name: Telegram Repo Feed
 
 on:
   push:
@@ -16,9 +16,6 @@ on:
     types: [published, prereleased]
   create:
   delete:
-  fork:
-  watch:
-    types: [started]
   workflow_dispatch:
 
 permissions:
@@ -41,7 +38,12 @@ jobs:
           ACTOR: ${{ github.actor }}
           SHA: ${{ github.sha }}
           REF_NAME: ${{ github.ref_name }}
-          GITHUB_OUTPUT: ${{ github.output }}
+
+          TG_THREAD_PRS: ${{ secrets.TELEGRAM_THREAD_PRS }}
+          TG_THREAD_PUSHES: ${{ secrets.TELEGRAM_THREAD_PUSHES }}
+          TG_THREAD_ISSUES: ${{ secrets.TELEGRAM_THREAD_ISSUES }}
+          TG_THREAD_REVIEWS: ${{ secrets.TELEGRAM_THREAD_REVIEWS }}
+          TG_THREAD_RELEASES: ${{ secrets.TELEGRAM_THREAD_RELEASES }}
         run: |
           python3 << 'PY'
           import json
@@ -56,6 +58,14 @@ jobs:
           sha = os.environ.get("SHA", "")
           ref_name = os.environ.get("REF_NAME", "")
           github_output = os.environ["GITHUB_OUTPUT"]
+
+          THREADS = {
+              "prs": os.environ.get("TG_THREAD_PRS", ""),
+              "pushes": os.environ.get("TG_THREAD_PUSHES", ""),
+              "issues": os.environ.get("TG_THREAD_ISSUES", ""),
+              "reviews": os.environ.get("TG_THREAD_REVIEWS", ""),
+              "releases": os.environ.get("TG_THREAD_RELEASES", ""),
+          }
 
           with open(event_path, "r", encoding="utf-8") as f:
               event = json.load(f)
@@ -76,54 +86,40 @@ jobs:
               return "\n".join(i for i in items if i)
 
           msg = ""
+          thread_id = ""
 
           if event_name == "push":
               commits = event.get("commits", [])
               compare = event.get("compare") or repository_url
               ref = event.get("ref", "")
               branch = ref.replace("refs/heads/", "").replace("refs/tags/", "")
-              created = event.get("created", False)
-              deleted = event.get("deleted", False)
               forced = event.get("forced", False)
 
-              title = "📤 <b>PUSH</b>"
-              if created:
-                  title = "🌱 <b>REF CREATED</b>"
-              if deleted:
-                  title = "🗑 <b>REF DELETED</b>"
+              thread_id = THREADS["pushes"]
 
               commit_lines = []
-              for c in commits[:10]:
+              for c in commits[:5]:
                   commit_id = short_sha(c.get("id", ""))
                   message = trim((c.get("message") or "").split("\n")[0], 120)
                   author = c.get("author", {}).get("name", "unknown")
-                  url = c.get("url", "")
                   line = f"• <code>{esc(commit_id)}</code> {esc(message)} — <i>{esc(author)}</i>"
-                  if url:
-                      line += f"\n  <a href=\"{esc(url)}\">open commit</a>"
                   commit_lines.append(line)
-
-              extra = ""
-              if len(commits) > 10:
-                  extra = f"…and {len(commits) - 10} more commit(s)"
 
               flags = []
               if forced:
                   flags.append("forced push")
 
               msg = join_lines([
-                  title,
+                  "📤 <b>PUSH</b>",
                   f"📦 <b>{esc(repository)}</b>",
                   f"🌿 <code>{esc(branch or ref_name)}</code>",
                   f"👤 <b>{esc(actor)}</b>",
                   f"🔢 commits: <b>{len(commits)}</b>",
                   f"⚠️ {' | '.join(flags)}" if flags else "",
                   "",
-                  "<b>Changes:</b>",
                   "\n".join(commit_lines) if commit_lines else f"Last commit: <code>{esc(short_sha(sha))}</code>",
-                  extra,
                   "",
-                  f"🔗 <a href=\"{esc(compare)}\">compare view</a>"
+                  f'🔗 <a href="{esc(compare)}">open compare</a>'
               ])
 
           elif event_name == "pull_request":
@@ -132,19 +128,17 @@ jobs:
               number = pr.get("number", event.get("number", ""))
               title = pr.get("title", "")
               url = pr.get("html_url", repository_url)
-              state = pr.get("state", "")
               merged = pr.get("merged", False)
-              draft = pr.get("draft", False)
-              additions = pr.get("additions", 0)
-              deletions = pr.get("deletions", 0)
-              changed_files = pr.get("changed_files", 0)
-              commits_count = pr.get("commits", 0)
               base = pr.get("base", {}).get("ref", "")
               head = pr.get("head", {}).get("ref", "")
-              body = trim(pr.get("body", ""), 500)
+              changed_files = pr.get("changed_files", 0)
+              commits_count = pr.get("commits", 0)
+
+              thread_id = THREADS["prs"]
 
               icon = "🔀"
               label = f"PR {action.upper()}"
+
               if action == "closed" and merged:
                   icon = "✅"
                   label = "PR MERGED"
@@ -155,22 +149,13 @@ jobs:
                   icon = "👀"
                   label = "PR READY FOR REVIEW"
 
-              details = []
-              if state:
-                  details.append(f"state: {state}")
-              if draft:
-                  details.append("draft")
-
               msg = join_lines([
                   f"{icon} <b>{esc(label)}</b>",
                   f"📦 <b>{esc(repository)}</b>",
-                  f"#{number} <a href=\"{esc(url)}\"><b>{esc(title)}</b></a>",
+                  f'#{number} <a href="{esc(url)}"><b>{esc(title)}</b></a>',
                   f"👤 <b>{esc(actor)}</b>",
                   f"🌿 <code>{esc(head)}</code> → <code>{esc(base)}</code>",
-                  f"📊 +{additions} / -{deletions} | files: {changed_files} | commits: {commits_count}",
-                  f"ℹ️ {esc(' | '.join(details))}" if details else "",
-                  "",
-                  esc(body) if body else ""
+                  f"📊 files: {changed_files} | commits: {commits_count}"
               ])
 
           elif event_name == "issues":
@@ -180,16 +165,15 @@ jobs:
               title = issue.get("title", "")
               url = issue.get("html_url", repository_url)
               state = issue.get("state", "")
-              body = trim(issue.get("body", ""), 500)
+
+              thread_id = THREADS["issues"]
 
               msg = join_lines([
                   f"📝 <b>ISSUE {esc(action.upper())}</b>",
                   f"📦 <b>{esc(repository)}</b>",
-                  f"#{number} <a href=\"{esc(url)}\"><b>{esc(title)}</b></a>",
+                  f'#{number} <a href="{esc(url)}"><b>{esc(title)}</b></a>',
                   f"👤 <b>{esc(actor)}</b>",
-                  f"📌 state: <b>{esc(state)}</b>",
-                  "",
-                  esc(body) if body else ""
+                  f"📌 state: <b>{esc(state)}</b>"
               ])
 
           elif event_name == "issue_comment":
@@ -198,13 +182,15 @@ jobs:
               is_pr = "pull_request" in issue
               kind = "PR COMMENT" if is_pr else "ISSUE COMMENT"
 
+              thread_id = THREADS["reviews"] if THREADS["reviews"] else THREADS["issues"]
+
               msg = join_lines([
                   f"💬 <b>{kind}</b>",
                   f"📦 <b>{esc(repository)}</b>",
-                  f"🔢 #{issue.get('number', '')}: <a href=\"{esc(comment.get('html_url', repository_url))}\"><b>{esc(issue.get('title', ''))}</b></a>",
+                  f'#{issue.get("number", "")} <a href="{esc(comment.get("html_url", repository_url))}"><b>{esc(issue.get("title", ""))}</b></a>',
                   f"👤 <b>{esc(actor)}</b>",
                   "",
-                  esc(trim(comment.get("body", ""), 700))
+                  esc(trim(comment.get("body", ""), 500))
               ])
 
           elif event_name == "pull_request_review":
@@ -212,13 +198,15 @@ jobs:
               pr = event.get("pull_request", {})
               state = (review.get("state") or "").upper()
 
+              thread_id = THREADS["reviews"] if THREADS["reviews"] else THREADS["prs"]
+
               msg = join_lines([
                   f"🧾 <b>PR REVIEW {esc(state)}</b>",
                   f"📦 <b>{esc(repository)}</b>",
-                  f"🔢 <a href=\"{esc(pr.get('html_url', repository_url))}\">#{pr.get('number', '')} {esc(pr.get('title', ''))}</a>",
+                  f'#{pr.get("number", "")} <a href="{esc(pr.get("html_url", repository_url))}"><b>{esc(pr.get("title", ""))}</b></a>',
                   f"👤 <b>{esc(actor)}</b>",
                   "",
-                  esc(trim(review.get("body", ""), 700)) if review.get("body") else ""
+                  esc(trim(review.get("body", ""), 500)) if review.get("body") else ""
               ])
 
           elif event_name == "pull_request_review_comment":
@@ -227,18 +215,20 @@ jobs:
               path = comment.get("path", "")
               line_no = comment.get("line") or comment.get("original_line") or ""
 
+              thread_id = THREADS["reviews"] if THREADS["reviews"] else THREADS["prs"]
+
               file_line = f"📄 <code>{esc(path)}</code>"
               if line_no:
                   file_line += f":{line_no}"
 
               msg = join_lines([
-                  f"🗨 <b>PR REVIEW COMMENT</b>",
+                  "🗨 <b>PR REVIEW COMMENT</b>",
                   f"📦 <b>{esc(repository)}</b>",
-                  f"🔢 <a href=\"{esc(comment.get('html_url', repository_url))}\">#{pr.get('number', '')} {esc(pr.get('title', ''))}</a>",
+                  f'#{pr.get("number", "")} <a href="{esc(comment.get("html_url", repository_url))}"><b>{esc(pr.get("title", ""))}</b></a>',
                   f"👤 <b>{esc(actor)}</b>",
                   file_line,
                   "",
-                  esc(trim(comment.get("body", ""), 700))
+                  esc(trim(comment.get("body", ""), 500))
               ])
 
           elif event_name == "release":
@@ -247,34 +237,35 @@ jobs:
               name = release.get("name") or release.get("tag_name", "")
               url = release.get("html_url", repository_url)
               prerelease = release.get("prerelease", False)
-              body = trim(release.get("body", ""), 1000)
+
+              thread_id = THREADS["releases"]
 
               msg = join_lines([
                   f"🚀 <b>RELEASE {esc(action.upper())}</b>",
                   f"📦 <b>{esc(repository)}</b>",
-                  f"🏷 <a href=\"{esc(url)}\"><b>{esc(name)}</b></a>",
+                  f'🏷 <a href="{esc(url)}"><b>{esc(name)}</b></a>',
                   f"👤 <b>{esc(actor)}</b>",
-                  f"🧪 prerelease: <b>{'yes' if prerelease else 'no'}</b>",
-                  "",
-                  esc(body) if body else ""
+                  f"🧪 prerelease: <b>{'yes' if prerelease else 'no'}</b>"
               ])
 
           elif event_name == "create":
               ref_type = event.get("ref_type", "")
               ref = event.get("ref", "")
-              master_branch = event.get("master_branch", "")
+
+              thread_id = THREADS["releases"]
 
               msg = join_lines([
                   f"✨ <b>{esc(ref_type.upper())} CREATED</b>",
                   f"📦 <b>{esc(repository)}</b>",
                   f"🔤 <code>{esc(ref)}</code>",
-                  f"👤 <b>{esc(actor)}</b>",
-                  f"🌿 base: <code>{esc(master_branch)}</code>" if master_branch else ""
+                  f"👤 <b>{esc(actor)}</b>"
               ])
 
           elif event_name == "delete":
               ref_type = event.get("ref_type", "")
               ref = event.get("ref", "")
+
+              thread_id = THREADS["releases"]
 
               msg = join_lines([
                   f"🗑 <b>{esc(ref_type.upper())} DELETED</b>",
@@ -283,42 +274,25 @@ jobs:
                   f"👤 <b>{esc(actor)}</b>"
               ])
 
-          elif event_name == "fork":
-              forkee = event.get("forkee", {})
-              full_name = forkee.get("full_name", "")
-              url = forkee.get("html_url", repository_url)
-
-              msg = join_lines([
-                  f"🍴 <b>REPOSITORY FORKED</b>",
-                  f"📦 <b>{esc(repository)}</b>",
-                  f"👤 <b>{esc(actor)}</b>",
-                  f"🔗 <a href=\"{esc(url)}\">{esc(full_name)}</a>" if url else ""
-              ])
-
-          elif event_name == "watch":
-              action = event.get("action", "")
-              msg = join_lines([
-                  f"⭐ <b>WATCH {esc(action.upper())}</b>",
-                  f"📦 <b>{esc(repository)}</b>",
-                  f"👤 <b>{esc(actor)}</b>",
-                  f"🔗 <a href=\"{esc(repository_url)}\">open repo</a>"
-              ])
-
           elif event_name == "workflow_dispatch":
+              thread_id = THREADS["releases"]
+
               msg = join_lines([
-                  f"🛠 <b>MANUAL RUN</b>",
+                  "🛠 <b>MANUAL RUN</b>",
                   f"📦 <b>{esc(repository)}</b>",
                   f"👤 <b>{esc(actor)}</b>",
                   f"🌿 <code>{esc(ref_name)}</code>",
-                  f"🔗 <a href=\"{esc(repository_url)}/actions\">actions tab</a>"
+                  f'🔗 <a href="{esc(repository_url)}/actions">actions tab</a>'
               ])
 
           else:
+              thread_id = THREADS["releases"]
+
               msg = join_lines([
                   f"📣 <b>EVENT: {esc(event_name)}</b>",
                   f"📦 <b>{esc(repository)}</b>",
                   f"👤 <b>{esc(actor)}</b>",
-                  f"🔗 <a href=\"{esc(repository_url)}\">open repo</a>"
+                  f'🔗 <a href="{esc(repository_url)}">open repo</a>'
               ])
 
           msg = msg[:4000]
@@ -327,17 +301,18 @@ jobs:
               out.write("text<<EOF\n")
               out.write(msg + "\n")
               out.write("EOF\n")
+              out.write(f"thread_id={thread_id}\n")
           PY
 
       - name: Send to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          THREAD_ID: ${{ secrets.TELEGRAM_MESSAGE_THREAD_ID }}
+          THREAD_ID: ${{ steps.build.outputs.thread_id }}
           TEXT: ${{ steps.build.outputs.text }}
         run: |
-          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
-            echo "Telegram secrets are missing"
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ] || [ -z "$TEXT" ]; then
+            echo "Telegram secrets or text are missing"
             exit 1
           fi
 
