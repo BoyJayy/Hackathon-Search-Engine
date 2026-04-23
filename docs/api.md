@@ -1,21 +1,21 @@
-# API Reference
+# API reference
 
-Это справочник по контрактам проекта. Здесь только API и обязательные поля, без roadmap и без внутренней реализации.
+This document describes the public API used by `Maple`.
 
-## Сервисы
+## Services
 
-В проекте есть два сервиса:
-- `index-service`
-- `search-service`
+- `index`
+- `search`
 
-## Index Service
+Default local URLs:
+- `http://localhost:8001` — index
+- `http://localhost:8002` — search
 
-### `GET /health`
+## Index service
 
-Назначение:
-- healthcheck контейнера.
+### GET /health
 
-Ожидаемый ответ:
+Response:
 
 ```json
 {
@@ -23,12 +23,9 @@
 }
 ```
 
-### `POST /index`
+### POST /index
 
-Назначение:
-- принять новую пачку сообщений;
-- построить чанки;
-- вернуть тексты для payload, dense и sparse индексации.
+Builds searchable chunks from a chat payload.
 
 Request body:
 
@@ -82,11 +79,6 @@ Request body:
 }
 ```
 
-Что означают поля:
-- `chat` — metadata чата.
-- `overlap_messages` — предыдущий контекст, который надо учитывать при chunking.
-- `new_messages` — новые сообщения, которые сейчас индексируются.
-
 Response body:
 
 ```json
@@ -102,21 +94,15 @@ Response body:
 }
 ```
 
-Поля ответа:
-- `page_content` — читаемый текст чанка для payload и rerank.
-- `dense_content` — текст для dense embedding.
-- `sparse_content` — текст для sparse embedding.
-- `message_ids` — сообщения, покрываемые чанком.
+Response fields:
+- `page_content` — readable chunk text
+- `dense_content` — text for dense embeddings
+- `sparse_content` — text for sparse embeddings
+- `message_ids` — message ids covered by the chunk
 
-Требования:
-- нельзя менять структуру ответа;
-- нельзя терять `message_ids`;
-- `results` может содержать несколько чанков на одну пачку сообщений.
+### POST /sparse_embedding
 
-### `POST /sparse_embedding`
-
-Назначение:
-- построить sparse vectors по batch текстов.
+Builds sparse vectors for a batch of texts.
 
 Request body:
 
@@ -141,18 +127,11 @@ Response body:
 }
 ```
 
-Требования:
-- формат должен быть совместим с Qdrant sparse vectors;
-- sparse-модель должна быть доступна локально внутри контейнера.
+## Search service
 
-## Search Service
+### GET /health
 
-### `GET /health`
-
-Назначение:
-- healthcheck контейнера.
-
-Ожидаемый ответ:
+Response:
 
 ```json
 {
@@ -160,13 +139,9 @@ Response body:
 }
 ```
 
-### `POST /search`
+### POST /search
 
-Назначение:
-- принять вопрос;
-- выполнить retrieval по Qdrant;
-- при необходимости сделать rerank;
-- вернуть отсортированные `message_ids`.
+Runs hybrid retrieval and returns ranked `message_ids`.
 
 Request body:
 
@@ -208,79 +183,68 @@ Response body:
 }
 ```
 
-Требования:
-- нельзя менять структуру ответа;
-- результаты должны быть отсортированы по релевантности;
-- итоговая метрика считается по `message_ids`.
+### POST /_debug/search
 
-## Env-переменные
+Runs the same search pipeline but also returns intermediate stage outputs.
 
-### `index`
+Useful query parameters:
+- `fusion=dbsf`
+- `fusion=rrf`
+- `max_dense=1`
+- `max_sparse=2`
+- `no_rescore=true`
 
-Обязательные / используемые:
+Typical response:
+
+```json
+{
+  "final": ["message-id-1", "message-id-2"],
+  "stages": {
+    "retrieval": ["message-id-1", "message-id-3"],
+    "rescored": ["message-id-1", "message-id-2"]
+  }
+}
+```
+
+## Environment variables
+
+### index
+
 - `HOST`
 - `PORT`
+- `MAX_CHUNK_CHARS`
+- `OVERLAP_MESSAGE_COUNT`
+- `MAX_TIME_GAP_SECONDS`
+- `LONG_MESSAGE_CHAR_THRESHOLD`
+- `LONG_MESSAGE_LINE_THRESHOLD`
+- `TECHNICAL_PREVIEW_LINES`
+- `TECHNICAL_PREVIEW_CHARS`
+- `SPLIT_MESSAGE_CHAR_THRESHOLD`
+- `SPLIT_SEGMENT_TARGET_CHARS`
 
-### `search`
+### search
 
-Обязательные / используемые:
 - `HOST`
 - `PORT`
-- `API_KEY` или `OPEN_API_LOGIN` + `OPEN_API_PASSWORD`
-- `EMBEDDINGS_DENSE_URL`
-- `RERANKER_URL`
 - `QDRANT_URL`
+- `QDRANT_API_KEY`
 - `QDRANT_COLLECTION_NAME`
 - `QDRANT_DENSE_VECTOR_NAME`
 - `QDRANT_SPARSE_VECTOR_NAME`
+- `DENSE_MODEL_NAME`
+- `DENSE_VECTOR_SIZE`
+- `SPARSE_MODEL_NAME`
+- `FUSION_MODE`
+- `DENSE_PREFETCH_K`
+- `SPARSE_PREFETCH_K`
+- `RETRIEVE_K`
+- `MAX_DENSE_QUERIES`
+- `MAX_SPARSE_QUERIES`
+- `FINAL_MESSAGE_LIMIT`
 
-## Внешний API хакатона
+## Contract stability
 
-Базовый URL:
-- `http://83.166.249.64:18001`
-
-Endpoint'ы:
-- `POST /embeddings`
-- `GET /embeddings/models`
-- `POST /score`
-- `GET /score/models`
-
-Dense embeddings example:
-
-```bash
-curl -u "$OPEN_API_LOGIN:$OPEN_API_PASSWORD" \
-  -X POST "http://83.166.249.64:18001/embeddings" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen3-Embedding-0.6B",
-    "input": ["Пример поискового запроса"]
-  }'
-```
-
-Rerank example:
-
-```bash
-curl -u "$OPEN_API_LOGIN:$OPEN_API_PASSWORD" \
-  -X POST "http://83.166.249.64:18001/score" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "nvidia/llama-nemotron-rerank-1b-v2",
-    "text_1": "Что обсуждали про релиз Go?",
-    "text_2": ["Первый кандидат", "Второй кандидат"]
-  }'
-```
-
-## Что относится к реализации, а не к контракту
-
-Можно менять:
-- chunking;
-- dense / sparse text preparation;
-- retrieval;
-- fusion;
-- rerank;
-- любые эвристики и фильтры.
-
-Нельзя менять:
-- форму request/response у `POST /index`;
-- форму request/response у `POST /sparse_embedding`;
-- форму request/response у `POST /search`.
+Internal implementation may change, but these request and response shapes should remain stable:
+- `POST /index`
+- `POST /sparse_embedding`
+- `POST /search`

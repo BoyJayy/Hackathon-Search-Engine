@@ -1,24 +1,23 @@
-# Index Service
+# Index service
 
-## Purpose
+The `index` service converts raw chat payloads into searchable chunks. It does not write data to Qdrant directly. Instead, it returns chunk texts and `message_ids`, and exposes a local sparse embedding endpoint.
 
-`index` принимает чат и сообщения, подготавливает чанки и возвращает данные для последующей индексации в Qdrant.
+## Responsibilities
 
-Сервис отвечает за:
-- нормализацию сообщений;
-- фильтрацию шума;
-- разбиение длинных сообщений;
-- chunking;
-- подготовку `page_content`, `dense_content`, `sparse_content`;
-- локальный расчёт sparse embeddings.
+- normalize chat messages;
+- filter empty or low value messages;
+- split large messages into smaller segments;
+- preserve limited overlap between batches;
+- build chunk text for payload, dense search and sparse search;
+- generate sparse embeddings for arbitrary text batches.
 
-## Modules
+## Module structure
 
-- `index/main.py` — FastAPI и маршруты
-- `index/config.py` — настройки chunking и логирования
-- `index/schemas.py` — схемы запросов и ответов
-- `index/chunking.py` — основная логика подготовки чанков
-- `index/sparse.py` — sparse embeddings через `fastembed`
+- `index/main.py` — FastAPI app and routes
+- `index/config.py` — runtime and chunking settings
+- `index/schemas.py` — request and response models
+- `index/chunking.py` — normalization and chunk building
+- `index/sparse.py` — sparse embedding wrapper
 
 ## Endpoints
 
@@ -26,79 +25,106 @@
 - `POST /index`
 - `POST /sparse_embedding`
 
-## Processing flow
+## Request flow
 
 ```text
 chat + overlap_messages + new_messages
   -> normalize messages
+  -> render text from text, parts and events
   -> filter noise
-  -> split long messages
+  -> split long content
   -> build chunks
-  -> format page/dense/sparse content
-  -> return results
+  -> return page_content, dense_content, sparse_content, message_ids
 ```
 
-## Message normalization
+## Input data
 
-В нормализованный текст могут входить:
+`POST /index` accepts:
+- chat metadata;
+- `overlap_messages` from the previous batch;
+- `new_messages` to index now.
+
+This lets the service preserve short range context between adjacent indexing batches.
+
+## Normalization
+
+For each message the service may use:
 - `text`
-- `parts[*].text`
+- text fragments from `parts`
+- quoted fragments from `parts`
 - `file_snippets`
-- системные события, если они содержат полезный сигнал
+- `member_event`
 
-Цитаты и собственный текст сообщения разделяются, чтобы retrieval и ranking могли различать ответ и процитированный контекст.
+The output is converted to a normalized internal message representation with:
+- `id`
+- `time`
+- `sender_id`
+- `thread_sn`
+- normalized text
+- mentions
+- message flags
 
 ## Filtering
 
-Обычно отбрасываются:
-- скрытые сообщения;
-- пустые сообщения;
-- часть служебных событий без текстового сигнала;
-- короткие шумовые реплики без полезного содержания.
+The service drops:
+- hidden messages;
+- empty messages;
+- short acknowledgment messages with no useful signal.
 
-## Chunking
+Examples of filtered noise:
+- `ok`
+- `thanks`
+- `+`
+- `понял`
 
-Chunking строится по сообщениям.  
-При сборке чанков учитываются:
-- overlap из предыдущего батча;
-- `thread_sn`;
-- временные разрывы;
-- лимит размера чанка;
-- длинные технические сообщения и логи.
+## Long messages
+
+Large messages are handled in two ways:
+- technical traces and logs are compressed into a preview;
+- long normal text is split into smaller semantic segments.
+
+This keeps chunks readable and makes retrieval more stable.
+
+## Chunk construction
+
+Chunks are built incrementally from normalized messages. A chunk is flushed when:
+- it grows beyond `MAX_CHUNK_CHARS`;
+- a large time gap appears;
+- message boundaries make the current chunk too large.
+
+The service also keeps a short overlap context from previous messages.
 
 ## Output fields
 
-### `page_content`
+### page_content
 
-Используется как читаемый payload:
-- для хранения в Qdrant;
-- для rerank;
-- для отладки.
+Human readable chunk text used as payload. It contains:
+- chat header;
+- optional context block;
+- message block.
 
-### `dense_content`
+### dense_content
 
-Используется для dense embeddings:
-- меньше служебной структуры;
-- больше смысловой связности;
-- ориентирован на semantic retrieval.
+Compact semantic text used to compute dense embeddings.
 
-### `sparse_content`
+### sparse_content
 
-Используется для sparse embeddings:
-- сохраняет точные токены;
-- усиливает keyword-сигналы;
-- полезен для exact match retrieval.
+Token preserving text used to compute sparse embeddings.
+
+### message_ids
+
+The ordered list of message ids represented by the chunk.
 
 ## Sparse embeddings
 
-`POST /sparse_embedding` принимает список текстов и возвращает sparse vectors в формате, совместимом с Qdrant.
+`POST /sparse_embedding` accepts a list of texts and returns sparse vectors compatible with Qdrant. The service uses `fastembed` with `Qdrant/bm25` by default.
 
 ## What the service does not do
 
-`index` не:
-- строит dense vectors;
-- пишет точки в Qdrant;
-- выполняет retrieval;
-- делает rerank.
+`index` does not:
+- compute dense embeddings;
+- create or update Qdrant collections;
+- write points to Qdrant;
+- execute retrieval or ranking.
 
-Эти шаги выполняются вне сервиса или в `search`.
+These steps are handled by `eval/ingest.py` or by external callers.

@@ -1,127 +1,142 @@
-# Search Service
+# Search service
 
-## Purpose
+The `search` service accepts a question, runs hybrid retrieval against Qdrant and returns ranked `message_ids`.
 
-`search` принимает вопрос, выполняет retrieval по Qdrant и возвращает список `message_ids`.
+The current implementation is local first:
+- dense embeddings are computed locally with `fastembed`;
+- sparse embeddings are computed locally with `fastembed`;
+- there is no external reranker.
 
-Сервис отвечает за:
-- подготовку query;
-- dense и sparse query embeddings;
-- hybrid retrieval;
-- fusion результатов;
-- локальный rescoring;
-- optional rerank;
-- финальную сборку `message_ids`.
+## Responsibilities
 
-## Modules
+- prepare the primary search query;
+- build dense and sparse query variants;
+- compute query embeddings locally;
+- fetch candidates from Qdrant;
+- combine dense and sparse retrieval with fusion;
+- apply lightweight local rescoring;
+- assemble final `message_ids`.
 
-- `search/main.py` — FastAPI и маршруты
-- `search/config.py` — env и runtime-настройки
-- `search/schemas.py` — схемы API
-- `search/querying.py` — query normalization, signal extraction, `QueryContext`
-- `search/pipeline.py` — retrieval, rescoring, rerank и final assembly
+## Module structure
 
-## Endpoint
+- `search/main.py` — FastAPI app and endpoints
+- `search/config.py` — runtime settings
+- `search/schemas.py` — API models
+- `search/querying.py` — query preparation
+- `search/pipeline.py` — embeddings, retrieval, fusion, rescoring and assembly
 
+## Endpoints
+
+- `GET /health`
 - `POST /search`
 - `POST /_debug/search`
-- `GET /health`
-
-`/_debug/search` нужен для локальной диагностики и сравнения стадий поиска.
 
 ## Search flow
 
 ```text
 question
-  -> build primary query
+  -> build search context
   -> build dense queries
   -> build sparse queries
-  -> dense embeddings
-  -> sparse embeddings
-  -> Qdrant retrieval
+  -> local embeddings
+  -> Qdrant hybrid retrieval
   -> fusion
   -> rescoring
-  -> rerank
   -> message_id assembly
 ```
 
 ## Query preparation
 
-Основной запрос строится из:
-- `question.search_text`, если он есть;
-- иначе `question.text`.
+The primary query is built from:
+- `question.search_text`, if present;
+- otherwise `question.text`.
 
-Dense queries могут включать:
-- `search_text`
-- `text`
+Additional signal comes from:
+- `keywords`
+- `entities`
+- `date_mentions`
 - `variants`
-- `hyde`
+- `asker`
 
-Sparse queries могут включать:
-- основной запрос;
-- `keywords`;
-- `entities`;
-- `date_mentions`;
-- `asker`.
+The service extracts a compact set of exact terms and uses them in two places:
+- as a compact sparse query;
+- as local exact match signals during rescoring.
 
-Дополнительно сервис собирает `QueryContext`, который хранит:
-- нормализованные phrase terms;
-- signal tokens;
-- identity terms;
-- intent;
-- временные границы запроса.
+## Dense queries
 
-Этот контекст переиспользуется в rescoring и final assembly.
+Dense queries are built from a small set of normalized strings, typically:
+- primary query;
+- raw `question.text`;
+- the first variant, if present;
+- compact exact term query.
+
+The number of dense queries is limited by `MAX_DENSE_QUERIES`.
+
+## Sparse queries
+
+Sparse queries are built from:
+- exact terms;
+- primary query;
+- raw `question.text`;
+- the first variant, if present.
+
+The number of sparse queries is limited by `MAX_SPARSE_QUERIES`.
 
 ## Retrieval
 
-Сервис отправляет в Qdrant несколько dense и sparse prefetch-веток.  
-После этого результаты объединяются через fusion.
+The service embeds query variants locally, then sends them to Qdrant as multiple prefetch branches:
+- dense branches use the `dense` vector field;
+- sparse branches use the `sparse` vector field.
 
-Поддерживаются параметры:
+The result sets are merged with fusion:
+- `dbsf`
+- or `rrf`
+
+Main parameters:
 - `DENSE_PREFETCH_K`
 - `SPARSE_PREFETCH_K`
 - `RETRIEVE_K`
-- `MAX_DENSE_QUERIES`
-- `MAX_SPARSE_QUERIES`
+- `FUSION_MODE`
 
 ## Rescoring
 
-После retrieval выполняется локальный пересчёт кандидатов.
+After retrieval the service applies a lightweight local rescore.
 
-При rescoring учитываются:
-- phrase hits;
-- signal tokens;
-- `participants` и `mentions`;
-- временные совпадения;
-- различие между `MESSAGES` и `CONTEXT`;
-- структура message-block внутри чанка.
+Signals include:
+- exact term hits in the message block;
+- exact term hits in the context block;
+- exact term hits in metadata such as participants and mentions;
+- original point rank.
 
-## Rerank
-
-Внешний rerank применяется только к верхней части кандидатов.
-
-Параметры:
-- `RERANK_LIMIT`
-- `RERANK_ALPHA`
-- `RERANK_MAX_TEXT_CHARS`
-
-Если reranker недоступен, сервис возвращает retrieval order fallback.
+The goal is to slightly prefer candidates that contain stronger exact evidence without introducing a heavy rerank stage.
 
 ## Final assembly
 
-После rerank сервис:
-- извлекает `message_ids` из payload;
-- переупорядочивает их по локальным сигналам внутри чанка;
-- удаляет дубликаты;
-- ограничивает результат top-50.
+The final response is built from payload `message_ids`.
 
-## Fault tolerance
+If the number of rendered message blocks matches the number of `message_ids`, the service also uses per block term hits to improve local ordering inside the chunk.
 
-Если dense API недоступен:
-- поиск продолжается в sparse-only режиме.
+The final list is:
+- deduplicated;
+- limited by `FINAL_MESSAGE_LIMIT`;
+- returned as `results[].message_ids`.
 
-Если reranker недоступен:
-- поиск продолжается без rerank.
+## Debug endpoint
 
-Это позволяет не ронять сервис из-за внешних зависимостей.
+`POST /_debug/search` returns both the final output and intermediate stage outputs.
+
+Useful query parameters:
+- `fusion=dbsf`
+- `fusion=rrf`
+- `max_dense=1`
+- `max_sparse=2`
+- `no_rescore=true`
+
+This endpoint is intended for local analysis and A B testing.
+
+## Default models
+
+- dense: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- sparse: `Qdrant/bm25`
+
+Both can be overridden with environment variables.
